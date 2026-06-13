@@ -1,6 +1,11 @@
 /**
  * Hand-written Database types mirroring the Phase 2 schema.
  * Regenerate with `supabase gen types typescript` once the CLI is wired.
+ *
+ * NOTE: Every table includes a `Relationships` array. The @supabase/ssr typed
+ * client uses these entries to resolve embedded joins (e.g.
+ * `.from('favorites').select('spots(...)')`). Omitting them collapses join
+ * results to `never[]`.
  */
 export type Json =
   | string
@@ -38,6 +43,7 @@ export interface Database {
           display_name?: string | null;
           avatar_url?: string | null;
         };
+        Relationships: [];
       };
       regions: {
         Row: {
@@ -53,6 +59,7 @@ export interface Database {
           bounds?: Json | null;
         };
         Update: Partial<Database['public']['Tables']['regions']['Insert']>;
+        Relationships: [];
       };
       spots: {
         Row: {
@@ -80,6 +87,15 @@ export interface Database {
           created_at?: string;
         };
         Update: Partial<Database['public']['Tables']['spots']['Insert']>;
+        Relationships: [
+          {
+            foreignKeyName: 'spots_region_id_fkey';
+            columns: ['region_id'];
+            isOneToOne: false;
+            referencedRelation: 'regions';
+            referencedColumns: ['id'];
+          },
+        ];
       };
       spot_photos: {
         Row: { id: string; spot_id: string; url: string; position: number };
@@ -90,11 +106,29 @@ export interface Database {
           position?: number;
         };
         Update: Partial<Database['public']['Tables']['spot_photos']['Insert']>;
+        Relationships: [
+          {
+            foreignKeyName: 'spot_photos_spot_id_fkey';
+            columns: ['spot_id'];
+            isOneToOne: false;
+            referencedRelation: 'spots';
+            referencedColumns: ['id'];
+          },
+        ];
       };
       favorites: {
         Row: { user_id: string; spot_id: string; created_at: string };
         Insert: { user_id: string; spot_id: string; created_at?: string };
         Update: Partial<Database['public']['Tables']['favorites']['Insert']>;
+        Relationships: [
+          {
+            foreignKeyName: 'favorites_spot_id_fkey';
+            columns: ['spot_id'];
+            isOneToOne: false;
+            referencedRelation: 'spots';
+            referencedColumns: ['id'];
+          },
+        ];
       };
       condition_snapshots: {
         Row: {
@@ -124,6 +158,15 @@ export interface Database {
         Update: Partial<
           Database['public']['Tables']['condition_snapshots']['Insert']
         >;
+        Relationships: [
+          {
+            foreignKeyName: 'condition_snapshots_spot_id_fkey';
+            columns: ['spot_id'];
+            isOneToOne: false;
+            referencedRelation: 'spots';
+            referencedColumns: ['id'];
+          },
+        ];
       };
       community_reports: {
         Row: {
@@ -149,6 +192,22 @@ export interface Database {
         Update: Partial<
           Database['public']['Tables']['community_reports']['Insert']
         >;
+        Relationships: [
+          {
+            foreignKeyName: 'community_reports_spot_id_fkey';
+            columns: ['spot_id'];
+            isOneToOne: false;
+            referencedRelation: 'spots';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'community_reports_species_id_fkey';
+            columns: ['species_id'];
+            isOneToOne: false;
+            referencedRelation: 'species';
+            referencedColumns: ['id'];
+          },
+        ];
       };
       score_cache: {
         Row: {
@@ -164,6 +223,15 @@ export interface Database {
           factors?: Json | null;
         };
         Update: Partial<Database['public']['Tables']['score_cache']['Insert']>;
+        Relationships: [
+          {
+            foreignKeyName: 'score_cache_spot_id_fkey';
+            columns: ['spot_id'];
+            isOneToOne: false;
+            referencedRelation: 'spots';
+            referencedColumns: ['id'];
+          },
+        ];
       };
       species: {
         Row: {
@@ -185,6 +253,7 @@ export interface Database {
           preferred_conditions?: Json | null;
         };
         Update: Partial<Database['public']['Tables']['species']['Insert']>;
+        Relationships: [];
       };
       spot_species: {
         Row: {
@@ -202,6 +271,22 @@ export interface Database {
           notes?: string | null;
         };
         Update: Partial<Database['public']['Tables']['spot_species']['Insert']>;
+        Relationships: [
+          {
+            foreignKeyName: 'spot_species_spot_id_fkey';
+            columns: ['spot_id'];
+            isOneToOne: false;
+            referencedRelation: 'spots';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'spot_species_species_id_fkey';
+            columns: ['species_id'];
+            isOneToOne: false;
+            referencedRelation: 'species';
+            referencedColumns: ['id'];
+          },
+        ];
       };
     };
     Views: Record<string, never>;
@@ -211,5 +296,6 @@ export interface Database {
       difficulty_level: DifficultyLevel;
       prevalence: Prevalence;
     };
+    CompositeTypes: Record<string, never>;
   };
 }
