@@ -40,6 +40,9 @@ export default async function FavoritesPage() {
       ) : (
         <ul className="space-y-2">
           {favorites.map((fav) => {
+            // `favorites.spot_id -> spots.id` is a to-one relation, so the
+            // embedded `spots` resolves to a single row (or null). Guard for
+            // the array shape too, in case the generated relation differs.
             const spot = Array.isArray(fav.spots) ? fav.spots[0] : fav.spots;
             return (
               <li
