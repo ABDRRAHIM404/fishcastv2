@@ -12,7 +12,13 @@ import { cn } from '@/lib/utils';
  * - Desktop: inline nav in the header.
  * - Mobile: fixed bottom tab bar.
  */
-export function AppShell({ children }: { children: React.ReactNode }) {
+export function AppShell({
+  children,
+  authSlot,
+}: {
+  children: React.ReactNode;
+  authSlot?: React.ReactNode;
+}) {
   const pathname = usePathname();
 
   return (
@@ -40,6 +46,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 {item.title}
               </Link>
             ))}
+            {authSlot}
           </nav>
         </div>
       </header>
