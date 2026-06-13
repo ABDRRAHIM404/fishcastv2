@@ -1,0 +1,21 @@
+import { cn } from '@/lib/utils';
+
+/**
+ * Base skeleton primitive with an animated shimmer sweep.
+ * Composed by higher-level skeletons in `components/shared`.
+ */
+function Skeleton({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
+  return (
+    <div
+      className={cn(
+        'relative overflow-hidden rounded-md bg-muted/60',
+        'after:absolute after:inset-0 after:-translate-x-full after:animate-shimmer',
+        'after:bg-gradient-to-r after:from-transparent after:via-white/10 after:to-transparent',
+        className
+      )}
+      {...props}
+    />
+  );
+}
+
+export { Skeleton };

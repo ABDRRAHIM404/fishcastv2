@@ -1,0 +1,91 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Dark ocean theme is the default and only theme in Phase 1. */
+    --background: 202 47% 6%;
+    --foreground: 195 30% 92%;
+
+    --card: 203 40% 9%;
+    --card-foreground: 195 30% 92%;
+
+    --popover: 203 44% 8%;
+    --popover-foreground: 195 30% 92%;
+
+    --primary: 190 85% 45%;
+    --primary-foreground: 202 60% 6%;
+
+    --secondary: 205 35% 18%;
+    --secondary-foreground: 195 30% 92%;
+
+    --muted: 205 25% 14%;
+    --muted-foreground: 200 16% 64%;
+
+    --accent: 168 70% 45%;
+    --accent-foreground: 202 60% 6%;
+
+    --destructive: 0 72% 55%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 205 30% 16%;
+    --input: 205 30% 16%;
+    --ring: 190 85% 50%;
+
+    --ocean-glow: 190 90% 50%;
+
+    --condition-excellent: 152 65% 45%;
+    --condition-good: 168 70% 45%;
+    --condition-moderate: 38 92% 55%;
+    --condition-poor: 0 72% 55%;
+
+    --radius: 0.875rem;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    background-image: var(--tw-bg-ocean, none);
+    min-height: 100dvh;
+  }
+
+  /* Subtle ocean ambiance behind all content. */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background:
+      radial-gradient(120% 90% at 50% -10%, hsl(var(--ocean-glow) / 0.12) 0%, transparent 55%),
+      radial-gradient(80% 60% at 100% 100%, hsl(var(--accent) / 0.08) 0%, transparent 60%);
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  /* Glassy premium surface used by card primitives. */
+  .surface-glass {
+    background: linear-gradient(
+      135deg,
+      hsl(var(--card) / 0.85) 0%,
+      hsl(var(--card) / 0.55) 100%
+    );
+    backdrop-filter: blur(12px);
+    border: 1px solid hsl(var(--border) / 0.8);
+  }
+}
