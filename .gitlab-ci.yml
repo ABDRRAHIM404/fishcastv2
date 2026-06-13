@@ -1,0 +1,53 @@
+# FishCast V2 — foundation CI.
+# Verifies every MR/branch: install → build → lint → typecheck.
+# Phase-specific jobs (tests, deploy, etc.) are added in later phases.
+
+default:
+  image: node:20-alpine
+
+stages:
+  - install
+  - verify
+
+# Cache node_modules + npm cache keyed by the lockfile.
+.node_cache: &node_cache
+  key:
+    files:
+      - package-lock.json
+  paths:
+    - .npm/
+    - node_modules/
+
+install:
+  stage: install
+  cache:
+    <<: *node_cache
+    policy: pull-push
+  script:
+    - npm install --cache .npm --prefer-offline
+  artifacts:
+    paths:
+      - node_modules/
+    expire_in: 1 hour
+
+.verify_template: &verify_template
+  stage: verify
+  needs: [install]
+  cache:
+    <<: *node_cache
+    policy: pull
+
+build:
+  <<: *verify_template
+  script:
+    - npm run build
+
+lint:
+  <<: *verify_template
+  script:
+    - npm run lint
+
+typecheck:
+  <<: *verify_template
+  script:
+    - npm run typecheck
