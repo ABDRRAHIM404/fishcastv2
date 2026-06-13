@@ -1,6 +1,10 @@
-import { createServerClient } from '@supabase/ssr';
+import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 import type { Database } from './types';
+
+// NOTE: This module must only use `createServerClient` from '@supabase/ssr'.
+// Importing `createBrowserClient` here pulls browser-only code into the Edge
+// middleware bundle and triggers the "Node.js API (process.version)" warning.
 
 /** Routes that require an authenticated user. */
 const PROTECTED_PREFIXES = ['/favorites'];
@@ -20,7 +24,9 @@ export async function updateSession(request: NextRequest) {
         getAll() {
           return request.cookies.getAll();
         },
-        setAll(cookiesToSet) {
+        setAll(
+          cookiesToSet: { name: string; value: string; options?: CookieOptions }[]
+        ) {
           cookiesToSet.forEach(({ name, value }) =>
             request.cookies.set(name, value)
           );
