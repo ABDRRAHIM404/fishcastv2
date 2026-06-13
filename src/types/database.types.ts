@@ -1,14 +1,17 @@
 /**
  * Re-export of the canonical Database types.
  *
- * The source of truth lives at `src/lib/supabase/types.ts` (next to the
- * Supabase clients). This alias exists so imports from `@/types/database.types`
- * resolve to the same definitions.
+ * Source of truth: `src/lib/supabase/types.ts` (generated from live Supabase project).
+ * This alias ensures imports from `@/types/database.types` resolve to the same definitions.
  */
 export type {
   Database,
   Json,
-  SpotType,
-  DifficultyLevel,
-  Prevalence,
+  Tables,
+  TablesInsert,
+  TablesUpdate,
+  Enums,
+  CompositeTypes,
 } from '@/lib/supabase/types';
+
+export { Constants } from '@/lib/supabase/types';

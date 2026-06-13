@@ -3,8 +3,20 @@ import { PageTransition } from '@/components/shared/motion';
 import { Button } from '@/components/ui/button';
 import { createClient } from '@/lib/supabase/server';
 import { removeFavorite } from '@/lib/supabase/actions';
+import type { Tables } from '@/lib/supabase/types';
 
 export const metadata = { title: 'Favorites' };
+
+type SpotRow = Pick<
+  Tables<'spots'>,
+  'id' | 'name' | 'type' | 'difficulty_level'
+>;
+
+type FavoriteRow = {
+  spot_id: string;
+  created_at: string;
+  spots: SpotRow | SpotRow[] | null;
+};
 
 // Protected route: middleware redirects unauthenticated users to /login.
 export default async function FavoritesPage() {
@@ -13,10 +25,12 @@ export default async function FavoritesPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const { data: favorites } = await supabase
+  const { data } = await supabase
     .from('favorites')
     .select('spot_id, created_at, spots(id, name, type, difficulty_level)')
     .order('created_at', { ascending: false });
+
+  const favorites = (data ?? []) as FavoriteRow[];
 
   const remove = removeFavorite.bind(null);
 
@@ -29,7 +43,7 @@ export default async function FavoritesPage() {
         </p>
       </div>
 
-      {!favorites || favorites.length === 0 ? (
+      {favorites.length === 0 ? (
         <p className="text-muted-foreground">
           No saved spots yet. Browse the{' '}
           <Link href="/map" className="text-primary underline">
@@ -40,9 +54,6 @@ export default async function FavoritesPage() {
       ) : (
         <ul className="space-y-2">
           {favorites.map((fav) => {
-            // `favorites.spot_id -> spots.id` is a to-one relation, so the
-            // embedded `spots` resolves to a single row (or null). Guard for
-            // the array shape too, in case the generated relation differs.
             const spot = Array.isArray(fav.spots) ? fav.spots[0] : fav.spots;
             return (
               <li

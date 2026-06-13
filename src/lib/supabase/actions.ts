@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { headers } from 'next/headers';
 import { createClient } from '@/lib/supabase/server';
+import type { TablesInsert } from '@/lib/supabase/types';
 
 /** Email + password sign-in. */
 export async function signInWithPassword(formData: FormData) {
@@ -66,7 +67,10 @@ export async function addFavorite(spotId: string) {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) redirect('/login');
-  await supabase.from('favorites').insert({ user_id: user.id, spot_id: spotId });
+
+  const row: TablesInsert<'favorites'> = { user_id: user.id, spot_id: spotId };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await (supabase.from('favorites') as any).insert(row);
   revalidatePath('/favorites');
 }
 
