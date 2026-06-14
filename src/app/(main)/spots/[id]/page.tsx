@@ -6,7 +6,8 @@ import { MapPin, Navigation } from 'lucide-react';
 import { PageTransition } from '@/components/shared/motion';
 import { PremiumCard } from '@/components/spot/premium-card';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
+import { buttonVariants } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 import { getSpotBySlug } from '@/lib/spots/queries';
 import {
   SPOT_TYPE_LABELS,
@@ -157,21 +158,23 @@ export default async function SpotDetailsPage({
                 </dd>
               </div>
             </dl>
-            <Button asChild variant="outline" className="mt-5 w-full">
-              <a
-                href={`https://www.google.com/maps/search/?api=1&query=${spot.latitude},${spot.longitude}`}
-                target="_blank"
-                rel="noreferrer"
-              >
-                <Navigation className="size-4" />
-                Open in Maps
-              </a>
-            </Button>
+            <a
+              href={`https://www.google.com/maps/search/?api=1&query=${spot.latitude},${spot.longitude}`}
+              target="_blank"
+              rel="noreferrer"
+              className={cn(buttonVariants({ variant: 'outline' }), 'mt-5 w-full')}
+            >
+              <Navigation className="size-4" />
+              Open in Maps
+            </a>
           </PremiumCard>
 
-          <Button asChild variant="ghost" className="w-full">
-            <Link href="/map">Back to map</Link>
-          </Button>
+          <Link
+            href="/map"
+            className={cn(buttonVariants({ variant: 'ghost' }), 'w-full')}
+          >
+            Back to map
+          </Link>
         </aside>
       </div>
     </PageTransition>
