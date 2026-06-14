@@ -1,0 +1,96 @@
+import 'server-only';
+import { createClient } from '@/lib/supabase/server';
+import type { SpotSpecies, Prevalence } from '@/types/species';
+
+/**
+ * Server-side species repository (read-only for Phase 4). Reads the
+ * `spot_species` junction joined to `species`. Public read via RLS.
+ *
+ * Phase 4 is presentation-only: this returns the species recorded at a spot
+ * with seasonality and prevalence. Suitability / "favored now" logic that
+ * cross-references live conditions is intentionally deferred to Phase 8.
+ */
+
+interface RawSpeciesRow {
+  id: string;
+  common_name?: string | null;
+  local_name?: string | null;
+  scientific_name?: string | null;
+  image_url?: string | null;
+  description?: string | null;
+}
+
+interface RawSpotSpeciesRow {
+  season_months?: number[] | null;
+  prevalence?: string | null;
+  notes?: string | null;
+  species: RawSpeciesRow | RawSpeciesRow[] | null;
+}
+
+const PREVALENCE_VALUES: readonly Prevalence[] = [
+  'common',
+  'occasional',
+  'rare',
+] as const;
+
+function toPrevalence(value: unknown): Prevalence | null {
+  return typeof value === 'string' &&
+    PREVALENCE_VALUES.includes(value as Prevalence)
+    ? (value as Prevalence)
+    : null;
+}
+
+/** Returns the species recorded at a spot, ordered by prevalence then name. */
+export async function getSpotSpecies(spotId: string): Promise<SpotSpecies[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from('spot_species')
+    .select(
+      'season_months, prevalence, notes, species(id, common_name, local_name, scientific_name, image_url, description)'
+    )
+    .eq('spot_id', spotId);
+
+  if (error) {
+    throw new Error(`Failed to load spot species: ${error.message}`);
+  }
+
+  const rows = (data ?? []) as RawSpotSpeciesRow[];
+
+  const mapped = rows
+    .map((row): SpotSpecies | null => {
+      const species = Array.isArray(row.species) ? row.species[0] : row.species;
+      if (!species || !species.id || !species.common_name) return null;
+
+      const seasonMonths = Array.isArray(row.season_months)
+        ? row.season_months.filter(
+            (m): m is number => typeof m === 'number'
+          )
+        : [];
+
+      return {
+        id: species.id,
+        commonName: species.common_name,
+        localName: species.local_name ?? null,
+        scientificName: species.scientific_name ?? null,
+        imageUrl: species.image_url ?? null,
+        description: species.description ?? null,
+        seasonMonths,
+        prevalence: toPrevalence(row.prevalence),
+        notes: row.notes ?? null,
+      };
+    })
+    .filter((s): s is SpotSpecies => s !== null);
+
+  const prevalenceRank: Record<Prevalence, number> = {
+    common: 0,
+    occasional: 1,
+    rare: 2,
+  };
+
+  return mapped.sort((a, b) => {
+    const ra = a.prevalence ? prevalenceRank[a.prevalence] : 3;
+    const rb = b.prevalence ? prevalenceRank[b.prevalence] : 3;
+    if (ra !== rb) return ra - rb;
+    return a.commonName.localeCompare(b.commonName);
+  });
+}

@@ -1,21 +1,22 @@
-import Image from 'next/image';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
-import { MapPin, Navigation } from 'lucide-react';
+import { Navigation } from 'lucide-react';
 import { PageTransition } from '@/components/shared/motion';
 import { PremiumCard } from '@/components/spot/premium-card';
-import { Badge } from '@/components/ui/badge';
+import { SpotHero } from '@/components/spot/spot-hero';
+import { SpotGallery } from '@/components/spot/spot-gallery';
+import { FavoriteButton } from '@/components/spot/favorite-button';
+import { SpeciesSection } from '@/components/species/species-section';
 import { buttonVariants } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { getSpotBySlug } from '@/lib/spots/queries';
-import {
-  SPOT_TYPE_LABELS,
-  DIFFICULTY_LABELS,
-  DIFFICULTY_BADGE_VARIANT,
-} from '@/types/spot';
+import { getSpotPhotos } from '@/lib/spots/photos';
+import { getSpotSpecies } from '@/lib/species/queries';
+import { isSpotFavorited } from '@/lib/spots/favorites';
+import { SPOT_TYPE_LABELS, DIFFICULTY_LABELS } from '@/types/spot';
 
-// The dynamic segment is the spot slug.
+// The dynamic segment is the spot slug (route folder name kept as [id]).
 export async function generateMetadata({
   params,
 }: {
@@ -35,6 +36,13 @@ export default async function SpotDetailsPage({
   const spot = await getSpotBySlug(id);
   if (!spot) notFound();
 
+  // Fetch presentation data in parallel. Species/photos are read-only here.
+  const [photos, species, favorited] = await Promise.all([
+    getSpotPhotos(spot.id),
+    getSpotSpecies(spot.id),
+    isSpotFavorited(spot.id),
+  ]);
+
   const factors = spot.difficultyFactors ?? {};
   const factorEntries = Object.entries(factors).filter(
     ([, value]) => typeof value === 'string' && value.length > 0
@@ -42,38 +50,7 @@ export default async function SpotDetailsPage({
 
   return (
     <PageTransition className="space-y-8">
-      {/* Hero */}
-      <section className="relative overflow-hidden rounded-2xl border border-border/70 shadow-premium">
-        <div className="relative aspect-[16/9] w-full bg-secondary/40 sm:aspect-[21/9]">
-          {spot.imageUrl ? (
-            <Image
-              src={spot.imageUrl}
-              alt={spot.name}
-              fill
-              priority
-              sizes="100vw"
-              className="object-cover"
-            />
-          ) : null}
-          <div className="absolute inset-0 bg-gradient-to-t from-background via-background/40 to-transparent" />
-        </div>
-        <div className="absolute bottom-0 left-0 right-0 p-6">
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="secondary">{SPOT_TYPE_LABELS[spot.spotType]}</Badge>
-            <Badge variant={DIFFICULTY_BADGE_VARIANT[spot.difficultyLevel]}>
-              {DIFFICULTY_LABELS[spot.difficultyLevel]}
-            </Badge>
-          </div>
-          <h1 className="mt-3 font-display text-display">{spot.name}</h1>
-          {spot.region ? (
-            <p className="mt-1 flex items-center gap-1 text-muted-foreground">
-              <MapPin className="size-4" />
-              {spot.region}
-              {spot.province ? ` · ${spot.province}` : ''}
-            </p>
-          ) : null}
-        </div>
-      </section>
+      <SpotHero spot={spot} />
 
       <div className="grid gap-6 lg:grid-cols-3">
         {/* Main column */}
@@ -105,6 +82,10 @@ export default async function SpotDetailsPage({
               </dl>
             </PremiumCard>
           ) : null}
+
+          <SpotGallery photos={photos} spotName={spot.name} />
+
+          <SpeciesSection species={species} />
 
           {/* Placeholders for future marine data (Phase 5+). */}
           <PremiumCard className="p-6">
@@ -158,15 +139,22 @@ export default async function SpotDetailsPage({
                 </dd>
               </div>
             </dl>
-            <a
-              href={`https://www.google.com/maps/search/?api=1&query=${spot.latitude},${spot.longitude}`}
-              target="_blank"
-              rel="noreferrer"
-              className={cn(buttonVariants({ variant: 'outline' }), 'mt-5 w-full')}
-            >
-              <Navigation className="size-4" />
-              Open in Maps
-            </a>
+
+            <div className="mt-5 space-y-2">
+              <FavoriteButton spotId={spot.id} initialFavorited={favorited} />
+              <a
+                href={`https://www.google.com/maps/search/?api=1&query=${spot.latitude},${spot.longitude}`}
+                target="_blank"
+                rel="noreferrer"
+                className={cn(
+                  buttonVariants({ variant: 'outline' }),
+                  'w-full'
+                )}
+              >
+                <Navigation className="size-4" />
+                Open in Maps
+              </a>
+            </div>
           </PremiumCard>
 
           <Link

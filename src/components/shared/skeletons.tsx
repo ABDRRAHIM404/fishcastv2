@@ -29,3 +29,38 @@ export function SpotGridSkeleton({ count = 6 }: { count?: number }) {
     </div>
   );
 }
+
+/** Premium skeleton mirroring the spot details page layout. */
+export function SpotDetailsSkeleton() {
+  return (
+    <div className="space-y-8">
+      <Skeleton className="aspect-[16/9] w-full rounded-2xl sm:aspect-[21/9]" />
+      <div className="grid gap-6 lg:grid-cols-3">
+        <div className="space-y-6 lg:col-span-2">
+          <Card className="space-y-3 p-6">
+            <Skeleton className="h-6 w-40" />
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-4 w-5/6" />
+          </Card>
+          <Card className="space-y-4 p-6">
+            <Skeleton className="h-6 w-32" />
+            <div className="grid gap-3 sm:grid-cols-2">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <Skeleton key={i} className="h-20 w-full" />
+              ))}
+            </div>
+          </Card>
+        </div>
+        <div className="space-y-6">
+          <Card className="space-y-3 p-6">
+            <Skeleton className="h-6 w-40" />
+            {Array.from({ length: 5 }).map((_, i) => (
+              <Skeleton key={i} className="h-4 w-full" />
+            ))}
+            <Skeleton className="h-10 w-full rounded-md" />
+          </Card>
+        </div>
+      </div>
+    </div>
+  );
+}
