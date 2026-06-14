@@ -355,43 +355,61 @@ export type Database = {
       }
       spots: {
         Row: {
+          active: boolean
           created_at: string
           description: string | null
           difficulty_factors: Json | null
           difficulty_level: Database["public"]["Enums"]["difficulty_level"]
           geom: unknown
           id: string
+          image_url: string | null
           lat: number
           lng: number
           name: string
+          province: string | null
+          region: string | null
           region_id: string | null
+          slug: string
           type: Database["public"]["Enums"]["spot_type"]
+          updated_at: string
         }
         Insert: {
+          active?: boolean
           created_at?: string
           description?: string | null
           difficulty_factors?: Json | null
           difficulty_level?: Database["public"]["Enums"]["difficulty_level"]
           geom?: unknown
           id?: string
+          image_url?: string | null
           lat: number
           lng: number
           name: string
+          province?: string | null
+          region?: string | null
           region_id?: string | null
+          slug: string
           type: Database["public"]["Enums"]["spot_type"]
+          updated_at?: string
         }
         Update: {
+          active?: boolean
           created_at?: string
           description?: string | null
           difficulty_factors?: Json | null
           difficulty_level?: Database["public"]["Enums"]["difficulty_level"]
           geom?: unknown
           id?: string
+          image_url?: string | null
           lat?: number
           lng?: number
           name?: string
+          province?: string | null
+          region?: string | null
           region_id?: string | null
+          slug?: string
           type?: Database["public"]["Enums"]["spot_type"]
+          updated_at?: string
         }
         Relationships: [
           {

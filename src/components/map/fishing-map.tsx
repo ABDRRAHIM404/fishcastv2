@@ -162,19 +162,15 @@ export function FishingMap({ spots, className }: FishingMapProps) {
         const source = map.getSource('spots') as mapboxgl.GeoJSONSource;
         if (clusterId == null || !source) return;
 
-        void source
-          .getClusterExpansionZoom(clusterId)
-          .then((zoom: number) => {
-            if (feature?.geometry.type === 'Point') {
-              map.easeTo({
-                center: feature.geometry.coordinates as [number, number],
-                zoom,
-              });
-            }
-          })
-          .catch(() => {
-            /* ignore cluster expansion errors */
-          });
+        source.getClusterExpansionZoom(clusterId, (err, zoom) => {
+          if (err || zoom == null) return;
+          if (feature?.geometry.type === 'Point') {
+            map.easeTo({
+              center: feature.geometry.coordinates as [number, number],
+              zoom,
+            });
+          }
+        });
       });
 
       // Popup + navigation for individual markers.
