@@ -7,9 +7,10 @@ export const siteConfig = {
   region: 'Chtouka Aït Baha · Souss-Massa, Morocco',
 } as const;
 
-/** Primary navigation. Routes are Phase 1 placeholders. */
+/** Primary navigation. */
 export const mainNav = [
   { title: 'Map', href: '/map' },
+  { title: 'Spots', href: '/spots' },
   { title: 'Species', href: '/species' },
   { title: 'Favorites', href: '/favorites' },
 ] as const;
