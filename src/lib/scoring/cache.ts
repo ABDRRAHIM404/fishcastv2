@@ -5,26 +5,25 @@ import { SCORE_TTL_MS } from '@/lib/scoring/constants';
 import type { ScoreResult } from '@/lib/scoring/types';
 import type { Json } from '@/lib/supabase/types';
 
-/**
- * score_cache integration. The existing table has PK (spot_id, computed_at)
- * and a `factors` jsonb column. Phase 6 treats it as a single-current-row
- * cache (no history yet): read the latest row, honor a 30 min TTL, and on a
- * miss delete prior rows for the spot then insert the fresh score. Reads use
- * the anon client (RLS public read); writes use the service-role client.
- */
+type ScoreCacheRow = {
+  score: number;
+  factors: Json;
+  computed_at: string;
+};
 
 /** Returns a fresh cached ScoreResult for a spot, or null when missing/expired. */
 export async function readScoreCache(
   spotId: string
 ): Promise<ScoreResult | null> {
   const supabase = await createClient();
-  const { data, error } = await supabase
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (supabase as any)
     .from('score_cache')
     .select('score, factors, computed_at')
     .eq('spot_id', spotId)
     .order('computed_at', { ascending: false })
     .limit(1)
-    .maybeSingle();
+    .maybeSingle() as { data: ScoreCacheRow | null; error: unknown };
 
   if (error || !data) return null;
   if (Date.now() - new Date(data.computed_at).getTime() > SCORE_TTL_MS) {
@@ -47,8 +46,10 @@ export async function writeScoreCache(
   const service = createServiceClient();
   if (!service) return;
 
-  await service.from('score_cache').delete().eq('spot_id', spotId);
-  await service.from('score_cache').insert({
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await (service as any).from('score_cache').delete().eq('spot_id', spotId);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await (service as any).from('score_cache').insert({
     spot_id: spotId,
     score: result.overallScore,
     factors: result as unknown as Json,
