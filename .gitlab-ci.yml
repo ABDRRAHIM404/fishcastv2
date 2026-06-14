@@ -51,3 +51,8 @@ typecheck:
   <<: *verify_template
   script:
     - npm run typecheck
+
+test:
+  <<: *verify_template
+  script:
+    - npm test
