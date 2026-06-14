@@ -30,6 +30,27 @@ export function SpotGridSkeleton({ count = 6 }: { count?: number }) {
   );
 }
 
+/** Skeleton for the marine conditions card grid (Wind/Waves/Weather/Tide). */
+export function MarineConditionsSkeleton({ count = 4 }: { count?: number }) {
+  return (
+    <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      {Array.from({ length: count }).map((_, i) => (
+        <div
+          key={i}
+          className="rounded-lg border border-border/60 p-4"
+        >
+          <Skeleton className="h-4 w-20" />
+          <div className="mt-3 space-y-2">
+            {Array.from({ length: 3 }).map((_, j) => (
+              <Skeleton key={j} className="h-4 w-full" />
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 /** Premium skeleton mirroring the spot details page layout. */
 export function SpotDetailsSkeleton() {
   return (

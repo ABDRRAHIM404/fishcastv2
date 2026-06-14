@@ -8,6 +8,7 @@ import { SpotHero } from '@/components/spot/spot-hero';
 import { SpotGallery } from '@/components/spot/spot-gallery';
 import { FavoriteButton } from '@/components/spot/favorite-button';
 import { SpeciesSection } from '@/components/species/species-section';
+import { MarineConditionsSection } from '@/components/marine/marine-conditions';
 import { buttonVariants } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { getSpotBySlug } from '@/lib/spots/queries';
@@ -85,26 +86,9 @@ export default async function SpotDetailsPage({
 
           <SpotGallery photos={photos} spotName={spot.name} />
 
-          <SpeciesSection species={species} />
+          <MarineConditionsSection spotId={spot.id} />
 
-          {/* Placeholders for future marine data (Phase 5+). */}
-          <PremiumCard className="p-6">
-            <h2 className="font-display text-h3">Marine conditions</h2>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Weather, tide, wind, waves, fishing score, and the marine timeline
-              arrive in later phases.
-            </p>
-            <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-              {['Weather', 'Tide', 'Wind', 'Waves'].map((label) => (
-                <div
-                  key={label}
-                  className="rounded-lg border border-dashed border-border/60 px-4 py-6 text-center text-sm text-muted-foreground"
-                >
-                  {label}
-                </div>
-              ))}
-            </div>
-          </PremiumCard>
+          <SpeciesSection species={species} />
         </div>
 
         {/* Sidebar */}
