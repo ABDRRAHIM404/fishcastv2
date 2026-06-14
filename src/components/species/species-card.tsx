@@ -13,11 +13,21 @@ import {
 } from '@/types/species';
 
 /**
- * Read-only species card for the spot details page. Shows the species image,
- * names, prevalence, and seasonality. No suitability / "favored now" logic
- * (Phase 8).
+ * Species card for the spot details page. Shows the species image, names,
+ * prevalence, and seasonality, plus optional "In season" and "Favored now"
+ * flags computed server-side (Phase 8).
  */
-export function SpeciesCard({ species }: { species: SpotSpecies }) {
+export function SpeciesCard({
+  species,
+  inSeason = false,
+  favored = false,
+  favoredReason = null,
+}: {
+  species: SpotSpecies;
+  inSeason?: boolean;
+  favored?: boolean;
+  favoredReason?: string | null;
+}) {
   const season = formatSeasonMonths(species.seasonMonths);
 
   return (
@@ -63,6 +73,19 @@ export function SpeciesCard({ species }: { species: SpotSpecies }) {
           <p className="mt-1 text-caption uppercase text-muted-foreground">
             Season: <span className="normal-case">{season}</span>
           </p>
+        ) : null}
+        {inSeason || favored ? (
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {favored ? (
+              <Badge
+                variant="excellent"
+                title={favoredReason ?? undefined}
+              >
+                Favored now
+              </Badge>
+            ) : null}
+            {inSeason ? <Badge variant="good">In season</Badge> : null}
+          </div>
         ) : null}
       </div>
     </motion.article>

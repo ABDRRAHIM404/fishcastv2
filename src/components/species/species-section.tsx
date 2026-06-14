@@ -7,12 +7,25 @@ import { SpeciesCard } from '@/components/species/species-card';
 import { staggerContainer } from '@/components/shared/motion';
 import type { SpotSpecies } from '@/types/species';
 
+/** Per-species presentation flags computed server-side. */
+export interface SpeciesFlags {
+  inSeason: boolean;
+  favored: boolean;
+  favoredReason: string | null;
+}
+
 /**
  * Species display for the spot details page. Always rendered so the page stays
- * visually complete; shows a styled empty state when no species are recorded
- * yet, teasing the Phase 8 species-tracking work.
+ * visually complete; shows a styled empty state when no species are recorded.
+ * "In season" / "Favored now" flags are passed in per species id.
  */
-export function SpeciesSection({ species }: { species: SpotSpecies[] }) {
+export function SpeciesSection({
+  species,
+  flags = {},
+}: {
+  species: SpotSpecies[];
+  flags?: Record<string, SpeciesFlags>;
+}) {
   return (
     <PremiumCard className="p-6">
       <div className="flex items-center gap-2">
@@ -38,9 +51,18 @@ export function SpeciesSection({ species }: { species: SpotSpecies[] }) {
           animate="show"
           className="mt-4 grid gap-3 sm:grid-cols-2"
         >
-          {species.map((s) => (
-            <SpeciesCard key={s.id} species={s} />
-          ))}
+          {species.map((s) => {
+            const f = flags[s.id];
+            return (
+              <SpeciesCard
+                key={s.id}
+                species={s}
+                inSeason={f?.inSeason ?? false}
+                favored={f?.favored ?? false}
+                favoredReason={f?.favoredReason ?? null}
+              />
+            );
+          })}
         </motion.div>
       )}
     </PremiumCard>

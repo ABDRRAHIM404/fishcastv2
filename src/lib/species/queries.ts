@@ -1,6 +1,7 @@
 import 'server-only';
 import { createClient } from '@/lib/supabase/server';
-import type { SpotSpecies, Prevalence } from '@/types/species';
+import type { SpotSpecies, Prevalence, Species } from '@/types/species';
+import { mapSpeciesRow, type RawSpeciesRow } from '@/lib/species/mapper';
 
 /**
  * Server-side species repository (read-only for Phase 4). Reads the
@@ -93,4 +94,38 @@ export async function getSpotSpecies(spotId: string): Promise<SpotSpecies[]> {
     if (ra !== rb) return ra - rb;
     return a.commonName.localeCompare(b.commonName);
   });
+}
+
+/** Returns the full regional species catalog, ordered by common name. */
+export async function getSpeciesCatalog(): Promise<Species[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from('species')
+    .select(
+      'id, common_name, local_name, scientific_name, image_url, description, preferred_conditions'
+    )
+    .order('common_name', { ascending: true });
+
+  if (error) {
+    throw new Error(`Failed to load species catalog: ${error.message}`);
+  }
+
+  return ((data ?? []) as RawSpeciesRow[])
+    .map(mapSpeciesRow)
+    .filter((s): s is Species => s !== null);
+}
+
+/** Returns a single species by id, or null when not found. */
+export async function getSpeciesById(id: string): Promise<Species | null> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from('species')
+    .select(
+      'id, common_name, local_name, scientific_name, image_url, description, preferred_conditions'
+    )
+    .eq('id', id)
+    .maybeSingle();
+
+  if (error || !data) return null;
+  return mapSpeciesRow(data as RawSpeciesRow);
 }
