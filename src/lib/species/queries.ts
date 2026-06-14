@@ -3,24 +3,6 @@ import { createClient } from '@/lib/supabase/server';
 import type { SpotSpecies, Prevalence, Species } from '@/types/species';
 import { mapSpeciesRow, type RawSpeciesRow } from '@/lib/species/mapper';
 
-/**
- * Server-side species repository (read-only for Phase 4). Reads the
- * `spot_species` junction joined to `species`. Public read via RLS.
- *
- * Phase 4 is presentation-only: this returns the species recorded at a spot
- * with seasonality and prevalence. Suitability / "favored now" logic that
- * cross-references live conditions is intentionally deferred to Phase 8.
- */
-
-interface RawSpeciesRow {
-  id: string;
-  common_name?: string | null;
-  local_name?: string | null;
-  scientific_name?: string | null;
-  image_url?: string | null;
-  description?: string | null;
-}
-
 interface RawSpotSpeciesRow {
   season_months?: number[] | null;
   prevalence?: string | null;

@@ -5,16 +5,8 @@ import { Search } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { SpeciesCatalogCard } from '@/components/species/species-catalog-card';
 import { staggerContainer } from '@/components/shared/motion';
-import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import type { Species } from '@/types/species';
-
-// Catalog cards don't carry prevalence (that is spot-scoped); the prevalence
-// filter is provided per the spec as a UI control over the catalog list. Since
-// the regional catalog has no single prevalence, the filter narrows by name
-// match only when 'all' is selected. We keep the control for UX completeness
-// and future spot-scoped catalogs.
-const FILTERS = ['all'] as const;
 
 /**
  * Premium species catalog with name search. Client component so search is
@@ -22,7 +14,6 @@ const FILTERS = ['all'] as const;
  */
 export function SpeciesCatalog({ species }: { species: Species[] }) {
   const [query, setQuery] = useState('');
-  const [filter] = useState<(typeof FILTERS)[number]>('all');
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
