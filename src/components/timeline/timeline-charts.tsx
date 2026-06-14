@@ -68,7 +68,7 @@ function ChartFrame({
   children,
 }: {
   title: string;
-  children: React.ReactNode;
+  children: React.ReactElement;
 }) {
   return (
     <div className="rounded-lg border border-border/60 p-3">

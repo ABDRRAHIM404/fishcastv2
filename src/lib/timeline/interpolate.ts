@@ -66,7 +66,7 @@ export function circularAt(samples: Sample[], ms: number): number | null {
   const c = samples[hi]!;
   if (lo === hi || a.ms === c.ms) return ((a.value % 360) + 360) % 360;
   const t = (ms - a.ms) / (c.ms - a.ms);
-  let delta = ((c.value - a.value + 540) % 360) - 180; // shortest signed arc
+  const delta = ((c.value - a.value + 540) % 360) - 180; // shortest signed arc
   const result = a.value + delta * t;
   return ((result % 360) + 360) % 360;
 }

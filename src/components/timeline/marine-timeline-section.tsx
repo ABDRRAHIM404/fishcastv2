@@ -35,7 +35,10 @@ export function MarineTimelineSection({ spotId }: { spotId: string }) {
   const { state } = useTimeline(spotId);
   const [index, setIndex] = useState<number | null>(null);
 
-  const points = state.status === 'ready' ? state.data.points : [];
+  const points = useMemo(
+    () => (state.status === 'ready' ? state.data.points : []),
+    [state]
+  );
   const defaultIndex = useMemo(
     () => (points.length ? nearestNowIndex(points.map((p) => p.time)) : 0),
     [points]
