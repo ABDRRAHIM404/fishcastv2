@@ -160,6 +160,47 @@ export type Database = {
           },
         ]
       }
+      marine_cache: {
+        Row: {
+          expires_at: string
+          fetched_at: string
+          id: string
+          kind: string
+          normalized: Json
+          provider: string
+          raw: Json | null
+          spot_id: string
+        }
+        Insert: {
+          expires_at: string
+          fetched_at?: string
+          id?: string
+          kind: string
+          normalized: Json
+          provider: string
+          raw?: Json | null
+          spot_id: string
+        }
+        Update: {
+          expires_at?: string
+          fetched_at?: string
+          id?: string
+          kind?: string
+          normalized?: Json
+          provider?: string
+          raw?: Json | null
+          spot_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "marine_cache_spot_id_fkey"
+            columns: ["spot_id"]
+            isOneToOne: false
+            referencedRelation: "spots"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           avatar_url: string | null

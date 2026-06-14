@@ -10,6 +10,12 @@ export interface CacheEntry<T> {
   cachedAt: string;
 }
 
+type MarineCacheRow = {
+  normalized: unknown;
+  fetched_at: string;
+  expires_at: string;
+};
+
 /**
  * Reads a fresh cache entry for (spotId, kind) using the public anon client
  * (RLS allows SELECT). Returns null when missing or expired.
@@ -19,12 +25,13 @@ export async function readCache<T>(
   kind: MarineKind
 ): Promise<CacheEntry<T> | null> {
   const supabase = await createClient();
-  const { data, error } = await supabase
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (supabase as any)
     .from('marine_cache')
     .select('normalized, fetched_at, expires_at')
     .eq('spot_id', spotId)
     .eq('kind', kind)
-    .maybeSingle();
+    .maybeSingle() as { data: MarineCacheRow | null; error: unknown };
 
   if (error || !data) return null;
   if (new Date(data.expires_at).getTime() <= Date.now()) return null;
@@ -49,7 +56,8 @@ export async function writeCache<T>(
 
   const service = createServiceClient();
   if (service) {
-    await service.from('marine_cache').upsert(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (service as any).from('marine_cache').upsert(
       {
         spot_id: spotId,
         kind,
