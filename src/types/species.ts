@@ -3,11 +3,6 @@ import type { Enums } from '@/lib/supabase/types';
 /** Prevalence enum derived from the generated Supabase schema (source of truth). */
 export type Prevalence = Enums<'prevalence'>;
 
-/**
- * Read-only domain model for a species targetable at a spot, normalized from a
- * joined `spot_species` + `species` row. Phase 4 is presentation-only: no
- * "favored now" cross-referencing against conditions (that arrives in Phase 8).
- */
 export interface SpotSpecies {
   id: string;
   commonName: string;
@@ -26,7 +21,6 @@ export const PREVALENCE_LABELS: Record<Prevalence, string> = {
   rare: 'Rare',
 };
 
-/** Badge variant per prevalence, reusing the Phase 1 condition tokens. */
 export const PREVALENCE_BADGE_VARIANT: Record<
   Prevalence,
   'good' | 'moderate' | 'poor'
@@ -37,25 +31,10 @@ export const PREVALENCE_BADGE_VARIANT: Record<
 };
 
 const MONTH_ABBR = [
-  'Jan',
-  'Feb',
-  'Mar',
-  'Apr',
-  'May',
-  'Jun',
-  'Jul',
-  'Aug',
-  'Sep',
-  'Oct',
-  'Nov',
-  'Dec',
+  'Jan','Feb','Mar','Apr','May','Jun',
+  'Jul','Aug','Sep','Oct','Nov','Dec',
 ] as const;
 
-/**
- * Formats a set of season months (1-12) into a compact, human-readable string,
- * collapsing contiguous runs (e.g. [3,4,5,9] -> "Mar-May, Sep"). Returns
- * "All year" when every month is present and null when empty.
- */
 export function formatSeasonMonths(months: number[]): string | null {
   const valid = Array.from(
     new Set(months.filter((m) => Number.isInteger(m) && m >= 1 && m <= 12))
@@ -64,20 +43,20 @@ export function formatSeasonMonths(months: number[]): string | null {
   if (valid.length === 12) return 'All year';
 
   const ranges: string[] = [];
-  let start = valid[0];
-  let prev = valid[0];
+  let start: number = valid[0]!;
+  let prev: number = valid[0]!;
 
   for (let i = 1; i <= valid.length; i++) {
-    const current = valid[i];
+    const current: number | undefined = valid[i];
     if (current !== prev + 1) {
       ranges.push(
         start === prev
-          ? MONTH_ABBR[start - 1]
-          : `${MONTH_ABBR[start - 1]}-${MONTH_ABBR[prev - 1]}`
+          ? MONTH_ABBR[start - 1]!
+          : `${MONTH_ABBR[start - 1]!}-${MONTH_ABBR[prev - 1]!}`
       );
-      start = current;
+      if (current !== undefined) start = current;
     }
-    prev = current;
+    if (current !== undefined) prev = current;
   }
 
   return ranges.join(', ');
