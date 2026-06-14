@@ -152,24 +152,29 @@ export function FishingMap({ spots, className }: FishingMapProps) {
         });
       }
 
-      // Expand clusters on click.
+      // Expand clusters on click (mapbox-gl v3 returns a Promise).
       map.on('click', 'clusters', (e) => {
         const features = map.queryRenderedFeatures(e.point, {
           layers: ['clusters'],
         });
-        const clusterId = features[0]?.properties?.cluster_id;
+        const feature = features[0];
+        const clusterId = feature?.properties?.cluster_id;
         const source = map.getSource('spots') as mapboxgl.GeoJSONSource;
         if (clusterId == null || !source) return;
-        source.getClusterExpansionZoom(clusterId, (err, zoom) => {
-          if (err || zoom == null) return;
-          const geometry = features[0]?.geometry;
-          if (geometry?.type === 'Point') {
-            map.easeTo({
-              center: geometry.coordinates as [number, number],
-              zoom,
-            });
-          }
-        });
+
+        void source
+          .getClusterExpansionZoom(clusterId)
+          .then((zoom: number) => {
+            if (feature?.geometry.type === 'Point') {
+              map.easeTo({
+                center: feature.geometry.coordinates as [number, number],
+                zoom,
+              });
+            }
+          })
+          .catch(() => {
+            /* ignore cluster expansion errors */
+          });
       });
 
       // Popup + navigation for individual markers.
