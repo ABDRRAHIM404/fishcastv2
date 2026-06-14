@@ -7,7 +7,7 @@ import { PremiumCard } from '@/components/spot/premium-card';
 import { SpotHero } from '@/components/spot/spot-hero';
 import { SpotGallery } from '@/components/spot/spot-gallery';
 import { FavoriteButton } from '@/components/spot/favorite-button';
-import { SpeciesSection } from '@/components/species/species-section';
+import { SpeciesSection, type SpeciesFlags } from '@/components/species/species-section';
 import { MarineConditionsSection } from '@/components/marine/marine-conditions';
 import { FishingScoreCard } from '@/components/scoring/fishing-score-card';
 import { MarineTimelineSection } from '@/components/timeline/marine-timeline-section';
@@ -15,8 +15,11 @@ import { buttonVariants } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { getSpotBySlug } from '@/lib/spots/queries';
 import { getSpotPhotos } from '@/lib/spots/photos';
-import { getSpotSpecies } from '@/lib/species/queries';
+import { getSpotSpecies, getSpeciesCatalog } from '@/lib/species/queries';
 import { isSpotFavorited } from '@/lib/spots/favorites';
+import { getMarineConditionsForSpot } from '@/lib/marine/service';
+import { evaluateSuitability } from '@/lib/species/suitability';
+import { isInSeason } from '@/types/species';
 import { SPOT_TYPE_LABELS, DIFFICULTY_LABELS } from '@/types/spot';
 
 // The dynamic segment is the spot slug (route folder name kept as [id]).
@@ -40,11 +43,38 @@ export default async function SpotDetailsPage({
   if (!spot) notFound();
 
   // Fetch presentation data in parallel. Species/photos are read-only here.
-  const [photos, species, favorited] = await Promise.all([
+  const [photos, species, favorited, catalog, marine] = await Promise.all([
     getSpotPhotos(spot.id),
     getSpotSpecies(spot.id),
     isSpotFavorited(spot.id),
+    getSpeciesCatalog(),
+    // Resilient: if marine data fails, flags simply default to not-favored.
+    getMarineConditionsForSpot({
+      id: spot.id,
+      latitude: spot.latitude,
+      longitude: spot.longitude,
+    }).catch(() => null),
   ]);
+
+  // Per-species presentation flags: "in season" (current month) and
+  // "favored now" (pure suitability engine against current conditions).
+  const currentMonth = new Date().getMonth() + 1;
+  const preferredById = new Map(
+    catalog.map((c) => [c.id, c.preferredConditions])
+  );
+  const speciesFlags: Record<string, SpeciesFlags> = {};
+  for (const s of species) {
+    const inSeason = isInSeason(s.seasonMonths, currentMonth);
+    let favored = false;
+    let favoredReason: string | null = null;
+    if (marine) {
+      const pc = preferredById.get(s.id) ?? null;
+      const result = evaluateSuitability(pc, marine);
+      favored = result.favored;
+      favoredReason = result.reason;
+    }
+    speciesFlags[s.id] = { inSeason, favored, favoredReason };
+  }
 
   const factors = spot.difficultyFactors ?? {};
   const factorEntries = Object.entries(factors).filter(
@@ -94,7 +124,7 @@ export default async function SpotDetailsPage({
 
           <MarineConditionsSection spotId={spot.id} />
 
-          <SpeciesSection species={species} />
+          <SpeciesSection species={species} flags={speciesFlags} />
         </div>
 
         {/* Sidebar */}
