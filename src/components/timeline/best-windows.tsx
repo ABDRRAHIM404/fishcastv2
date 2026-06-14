@@ -36,7 +36,7 @@ export function BestWindows({ windows }: { windows: FishingWindow[] }) {
           <div className="flex items-center gap-3">
             <Badge variant={WINDOW_BADGE[w.label]}>{w.label}</Badge>
             <span className="tabular-nums">
-              {time(w.start)} \u2013 {time(w.end)}
+              {time(w.start)} {'–'} {time(w.end)}
             </span>
           </div>
           <span className="text-sm text-muted-foreground">
