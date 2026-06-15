@@ -10,6 +10,7 @@ import { FavoriteButton } from '@/components/spot/favorite-button';
 import { SpeciesSection, type SpeciesFlags } from '@/components/species/species-section';
 import { MarineConditionsSection } from '@/components/marine/marine-conditions';
 import { FishingScoreCard } from '@/components/scoring/fishing-score-card';
+import { AiRecommendationCard } from '@/components/ai/ai-recommendation-card';
 import { MarineTimelineSection } from '@/components/timeline/marine-timeline-section';
 import { buttonVariants } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -119,6 +120,8 @@ export default async function SpotDetailsPage({
           <SpotGallery photos={photos} spotName={spot.name} />
 
           <FishingScoreCard spotId={spot.id} />
+
+          <AiRecommendationCard spotId={spot.id} />
 
           <MarineTimelineSection spotId={spot.id} />
 
