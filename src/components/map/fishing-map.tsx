@@ -152,16 +152,18 @@ export function FishingMap({ spots, className }: FishingMapProps) {
         },
       });
 
-      // Fit to all spots if there is more than one.
-      if (spots.length > 1) {
-        const bounds = new mapboxgl.LngLatBounds();
-        spots.forEach((s) => bounds.extend([s.longitude, s.latitude]));
-        map.fitBounds(bounds, {
-          padding: MAP_CONFIG.fitBoundsPadding,
-          maxZoom: 11,
-          duration: 0,
-        });
-      }
+      // After map.on('load', ...) sets up layers, replace the fitBounds call with:
+setTimeout(() => {
+  if (spots.length > 1) {
+    const bounds = new mapboxgl.LngLatBounds();
+    spots.forEach((s) => bounds.extend([s.longitude, s.latitude]));
+    map.fitBounds(bounds, {
+      padding: MAP_CONFIG.fitBoundsPadding,
+      maxZoom: 11,
+      duration: 0,
+    });
+  }
+}, 100);
 
       // Expand clusters on click (mapbox-gl v3 returns a Promise).
       map.on('click', 'clusters', (e) => {
