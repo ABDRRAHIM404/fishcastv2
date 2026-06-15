@@ -39,6 +39,50 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_recommendations: {
+        Row: {
+          date: string
+          expires_at: string
+          generated_at: string
+          id: string
+          payload_hash: string
+          prompt_version: string
+          recommendation: Json
+          source: string
+          spot_id: string
+        }
+        Insert: {
+          date: string
+          expires_at: string
+          generated_at?: string
+          id?: string
+          payload_hash: string
+          prompt_version: string
+          recommendation: Json
+          source: string
+          spot_id: string
+        }
+        Update: {
+          date?: string
+          expires_at?: string
+          generated_at?: string
+          id?: string
+          payload_hash?: string
+          prompt_version?: string
+          recommendation?: Json
+          source?: string
+          spot_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_recommendations_spot_id_fkey"
+            columns: ["spot_id"]
+            isOneToOne: false
+            referencedRelation: "spots"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       community_reports: {
         Row: {
           catch_count: number | null
@@ -194,6 +238,41 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "marine_cache_spot_id_fkey"
+            columns: ["spot_id"]
+            isOneToOne: false
+            referencedRelation: "spots"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      marine_timeline_cache: {
+        Row: {
+          date: string
+          expires_at: string
+          fetched_at: string
+          id: string
+          payload: Json
+          spot_id: string
+        }
+        Insert: {
+          date: string
+          expires_at: string
+          fetched_at?: string
+          id?: string
+          payload: Json
+          spot_id: string
+        }
+        Update: {
+          date?: string
+          expires_at?: string
+          fetched_at?: string
+          id?: string
+          payload?: Json
+          spot_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "marine_timeline_cache_spot_id_fkey"
             columns: ["spot_id"]
             isOneToOne: false
             referencedRelation: "spots"
