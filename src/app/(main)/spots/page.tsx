@@ -2,7 +2,14 @@ import { PageTransition, StaggerGroup, StaggerItem } from '@/components/shared/m
 import { SpotListCard } from '@/components/spot/spot-list-card';
 import { getActiveSpots } from '@/lib/spots/queries';
 
-export const metadata = { title: 'Spots' };
+const spotsDescription =
+  'Local fishing spots across Chtouka Aït Baha and Souss-Massa, with difficulty and live conditions.';
+
+export const metadata = {
+  title: 'Spots',
+  description: spotsDescription,
+  openGraph: { title: 'Spots', description: spotsDescription },
+};
 
 export default async function SpotsPage() {
   const spots = await getActiveSpots();

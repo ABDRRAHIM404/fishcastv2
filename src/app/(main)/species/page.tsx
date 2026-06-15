@@ -2,7 +2,14 @@ import { PageTransition } from '@/components/shared/motion';
 import { SpeciesCatalog } from '@/components/species/species-catalog';
 import { getSpeciesCatalog } from '@/lib/species/queries';
 
-export const metadata = { title: 'Species' };
+const speciesDescription =
+  'Browse the coastal fish species of the Souss-Massa region, with seasonality and the conditions that favor each.';
+
+export const metadata = {
+  title: 'Species',
+  description: speciesDescription,
+  openGraph: { title: 'Species', description: speciesDescription },
+};
 
 // Regional species catalog for Souss-Massa.
 export default async function SpeciesPage() {

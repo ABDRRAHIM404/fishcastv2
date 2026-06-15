@@ -31,7 +31,27 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { id } = await params;
   const spot = await getSpotBySlug(id);
-  return { title: spot?.name ?? 'Spot' };
+  if (!spot) return { title: 'Spot' };
+
+  const regionLine = [spot.region, spot.province]
+    .filter(Boolean)
+    .join(' · ');
+  const description =
+    spot.description ??
+    `Live marine conditions, fishing score, best windows and target species for ${spot.name}${
+      regionLine ? ` (${regionLine})` : ''
+    }.`;
+
+  return {
+    title: spot.name,
+    description,
+    openGraph: {
+      title: spot.name,
+      description,
+      type: 'article',
+      images: spot.imageUrl ? [{ url: spot.imageUrl }] : undefined,
+    },
+  };
 }
 
 export default async function SpotDetailsPage({

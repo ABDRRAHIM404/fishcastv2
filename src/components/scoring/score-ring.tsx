@@ -1,6 +1,7 @@
 'use client';
 
 import { motion } from 'framer-motion';
+import { EASE } from '@/components/shared/motion';
 
 /**
  * Circular score ring (0-10). Pure presentation: renders an SVG progress arc
@@ -36,7 +37,13 @@ export function ScoreRing({
 
   return (
     <div className={className}>
-      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+      <svg
+        width={size}
+        height={size}
+        viewBox={`0 0 ${size} ${size}`}
+        role="img"
+        aria-label={`Fishing score ${score.toFixed(1)} out of 10`}
+      >
         <circle
           cx={size / 2}
           cy={size / 2}
@@ -56,7 +63,7 @@ export function ScoreRing({
           strokeDasharray={circumference}
           initial={{ strokeDashoffset: circumference }}
           animate={{ strokeDashoffset: offset }}
-          transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1] }}
+          transition={{ duration: 0.9, ease: EASE }}
           transform={`rotate(-90 ${size / 2} ${size / 2})`}
         />
       </svg>

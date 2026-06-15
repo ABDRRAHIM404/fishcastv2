@@ -2,7 +2,14 @@ import { PageTransition } from '@/components/shared/motion';
 import { LazyFishingMap } from '@/components/map/lazy-fishing-map';
 import { getActiveSpots } from '@/lib/spots/queries';
 
-export const metadata = { title: 'Map' };
+const mapDescription =
+  'Explore fishing spots across Chtouka Aït Baha and the Souss-Massa coast on an interactive map.';
+
+export const metadata = {
+  title: 'Map',
+  description: mapDescription,
+  openGraph: { title: 'Map', description: mapDescription },
+};
 
 // Server component: fetch spots, then hand them to the client map.
 export default async function MapPage() {
