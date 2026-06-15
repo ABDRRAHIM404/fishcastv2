@@ -14,6 +14,11 @@ export const metadata = {
 // Server component: fetch spots, then hand them to the client map.
 export default async function MapPage() {
   const spots = await getActiveSpots();
+  if (!spots?.length) {
+    console.error(
+      'MapPage: getActiveSpots returned no active spots. The map may render blank.'
+    );
+  }
 
   return (
     <PageTransition className="space-y-5">

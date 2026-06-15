@@ -60,9 +60,10 @@ export function FishingMap({ spots, className }: FishingMapProps) {
 
   useEffect(() => {
     if (!TOKEN) {
-      setErrorMessage(
-        'Map unavailable: NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN is not set.'
-      );
+      const message =
+        'Map unavailable: NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN is not set.';
+      console.error(message);
+      setErrorMessage(message);
       setStatus('error');
       return;
     }
@@ -80,12 +81,12 @@ export function FishingMap({ spots, className }: FishingMapProps) {
         minZoom: MAP_CONFIG.minZoom,
         maxZoom: MAP_CONFIG.maxZoom,
         attributionControl: false,
-        cooperativeGestures: true,
       });
     } catch (err) {
-      setErrorMessage(
-        err instanceof Error ? err.message : 'Failed to initialize the map.'
-      );
+      const errorText =
+        err instanceof Error ? err.message : 'Failed to initialize the map.';
+      console.error('FishingMap initialization error:', err);
+      setErrorMessage(errorText);
       setStatus('error');
       return;
     }
@@ -96,6 +97,7 @@ export function FishingMap({ spots, className }: FishingMapProps) {
     map.addControl(new mapboxgl.AttributionControl({ compact: true }));
 
     map.on('error', (e) => {
+      console.error('Mapbox error event:', e.error);
       setErrorMessage(e.error?.message ?? 'Map failed to load.');
       setStatus('error');
     });

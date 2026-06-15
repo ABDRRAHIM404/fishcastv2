@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { PageTransition, StaggerGroup, StaggerItem } from '@/components/shared/motion';
 import { SpotCard } from '@/components/spot/spot-card';
 import { PremiumCard } from '@/components/spot/premium-card';
@@ -49,9 +50,11 @@ export default function HomePage() {
             {siteConfig.description}
           </p>
           <div className="mt-8 flex items-center justify-center gap-3">
-            <Button size="lg">Explore the map</Button>
-            <Button size="lg" variant="outline">
-              Browse spots
+            <Button asChild size="lg">
+              <Link href="/map">Explore the map</Link>
+            </Button>
+            <Button asChild size="lg" variant="outline">
+              <Link href="/spots">Browse spots</Link>
             </Button>
           </div>
         </div>
