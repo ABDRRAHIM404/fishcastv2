@@ -28,10 +28,12 @@ export async function signUpWithPassword(formData: FormData) {
 
   const supabase = await createClient();
   const origin = (await headers()).get('origin') ?? '';
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? '';
+  const callbackBase = (origin || siteUrl).replace(/\/$/, '');
   const { error } = await supabase.auth.signUp({
     email,
     password,
-    options: { emailRedirectTo: `${origin}/auth/callback` },
+    options: { emailRedirectTo: `${callbackBase}/auth/callback` },
   });
   if (error) {
     redirect(`/login?error=${encodeURIComponent(error.message)}`);
@@ -43,9 +45,11 @@ export async function signUpWithPassword(formData: FormData) {
 export async function signInWithGoogle() {
   const supabase = await createClient();
   const origin = (await headers()).get('origin') ?? '';
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? '';
+  const callbackBase = (origin || siteUrl).replace(/\/$/, '');
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: 'google',
-    options: { redirectTo: `${origin}/auth/callback` },
+    options: { redirectTo: `${callbackBase}/auth/callback` },
   });
   if (error || !data?.url) {
     redirect(`/login?error=${encodeURIComponent(error?.message ?? 'OAuth unavailable')}`);
@@ -70,7 +74,10 @@ export async function addFavorite(spotId: string) {
 
   const row: TablesInsert<'favorites'> = { user_id: user.id, spot_id: spotId };
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  await (supabase.from('favorites') as any).insert(row);
+  const { error } = await (supabase.from('favorites') as any).insert(row);
+  if (error) {
+    throw new Error(`Failed to add favorite: ${error.message}`);
+  }
   revalidatePath('/favorites');
 }
 
@@ -81,10 +88,13 @@ export async function removeFavorite(spotId: string) {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) redirect('/login');
-  await supabase
+  const { error } = await supabase
     .from('favorites')
     .delete()
     .eq('user_id', user.id)
     .eq('spot_id', spotId);
+  if (error) {
+    throw new Error(`Failed to remove favorite: ${error.message}`);
+  }
   revalidatePath('/favorites');
 }

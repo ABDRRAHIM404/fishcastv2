@@ -39,14 +39,21 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Spot not found' }, { status: 404 });
   }
 
-  const result = await getAiRecommendationForSpot({
-    id: spot.id,
-    name: spot.name,
-    latitude: spot.latitude,
-    longitude: spot.longitude,
-    spotType: spot.spotType,
-    difficultyLevel: spot.difficultyLevel,
-  });
+  try {
+    const result = await getAiRecommendationForSpot({
+      id: spot.id,
+      name: spot.name,
+      latitude: spot.latitude,
+      longitude: spot.longitude,
+      spotType: spot.spotType,
+      difficultyLevel: spot.difficultyLevel,
+    });
 
-  return NextResponse.json(result);
+    return NextResponse.json(result);
+  } catch {
+    return NextResponse.json(
+      { error: 'Failed to generate AI recommendation' },
+      { status: 502 }
+    );
+  }
 }

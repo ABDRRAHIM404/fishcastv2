@@ -16,6 +16,15 @@ interface FishingMapProps {
   className?: string;
 }
 
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 function toFeatureCollection(spots: Spot[]): GeoJSON.FeatureCollection {
   return {
     type: 'FeatureCollection',
@@ -188,11 +197,14 @@ export function FishingMap({ spots, className }: FishingMapProps) {
           string,
           string
         >;
+        const nameText = escapeHtml(String(name ?? ''));
+        const spotTypeText = escapeHtml(String(spotType ?? ''));
+        const difficultyText = escapeHtml(String(difficulty ?? ''));
         popup
           .setLngLat(feature.geometry.coordinates as [number, number])
           .setHTML(
-            `<div style="font-family:inherit"><strong>${name}</strong><br/>` +
-              `<span style="opacity:.7">${spotType} · ${difficulty}</span></div>`
+            `<div style="font-family:inherit"><strong>${nameText}</strong><br/>` +
+              `<span style="opacity:.7">${spotTypeText} · ${difficultyText}</span></div>`
           )
           .addTo(map);
       });

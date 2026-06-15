@@ -33,6 +33,15 @@ export async function getActiveSpots(): Promise<Spot[]> {
 
 /** Returns a single active spot by its public slug, or null if not found. */
 export async function getSpotBySlug(slug: string): Promise<Spot | null> {
-  const spots = await getActiveSpots();
-  return spots.find((spot) => spot.slug === slug) ?? null;
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from('spots')
+    .select('*')
+    .eq('slug', slug)
+    .maybeSingle();
+
+  if (error || !data) return null;
+
+  const spot = mapSpotRow(data as RawSpotRow);
+  return spot && spot.active ? spot : null;
 }
