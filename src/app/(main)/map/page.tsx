@@ -1,5 +1,5 @@
 import { PageTransition } from '@/components/shared/motion';
-import { FishingMap } from '@/components/map/fishing-map';
+import { LazyFishingMap } from '@/components/map/lazy-fishing-map';
 import { getActiveSpots } from '@/lib/spots/queries';
 
 export const metadata = { title: 'Map' };
@@ -22,7 +22,7 @@ export default async function MapPage() {
         </span>
       </div>
 
-      <FishingMap spots={spots} />
+      <LazyFishingMap spots={spots} />
     </PageTransition>
   );
 }
