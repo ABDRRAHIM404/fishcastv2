@@ -37,4 +37,5 @@ export default async function MapPage() {
       <LazyFishingMap spots={spots} />
     </PageTransition>
   );
+  console.log('MapPage spots:', JSON.stringify(spots.map(s => ({ name: s.name, lat: s.latitude, lng: s.longitude, active: s.active }))));
 }
