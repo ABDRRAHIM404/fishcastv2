@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { MotionConfig } from 'framer-motion';
 import { Fish } from 'lucide-react';
 import { mainNav, siteConfig } from '@/config/site';
 import { cn } from '@/lib/utils';
@@ -22,6 +23,7 @@ export function AppShell({
   const pathname = usePathname();
 
   return (
+    <MotionConfig reducedMotion="user">
     <div className="flex min-h-dvh flex-col">
       <header className="sticky top-0 z-40 border-b border-border/70 bg-background/70 backdrop-blur-md">
         <div className="container flex h-16 items-center justify-between">
@@ -70,5 +72,6 @@ export function AppShell({
         </div>
       </nav>
     </div>
+    </MotionConfig>
   );
 }
