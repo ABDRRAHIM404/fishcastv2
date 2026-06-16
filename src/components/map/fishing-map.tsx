@@ -92,6 +92,10 @@ export function FishingMap({ spots, className }: FishingMapProps) {
     }
 
     mapRef.current = map;
+    // Hard fallback: force ready after 5 seconds regardless
+     const fallbackTimer = setTimeout(() => {
+      setStatus('ready');
+     }, 5000);
 
     map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), 'top-right');
     map.addControl(new mapboxgl.AttributionControl({ compact: true }));
@@ -227,6 +231,7 @@ setTimeout(() => {
       });
 
     return () => {
+     clearTimeout(fallbackTimer);
       map.remove();
       mapRef.current = null;
     };
