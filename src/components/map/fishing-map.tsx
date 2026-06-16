@@ -163,6 +163,11 @@ export function FishingMap({ spots, className }: FishingMapProps) {
         });
       }
 
+      // Force a resize after the map has been inserted and the page is visible.
+      // This avoids blank canvas rendering when map initialization happens
+      // before the client route/page transition has fully painted.
+      map.resize();
+
       // Expand clusters on click (mapbox-gl v3 returns a Promise).
       map.on('click', 'clusters', (e) => {
         const features = map.queryRenderedFeatures(e.point, {
@@ -221,7 +226,9 @@ export function FishingMap({ spots, className }: FishingMapProps) {
         if (typeof slug === 'string') router.push(`/spots/${slug}`);
       });
 
-      setStatus('ready');
+      map.once('idle', () => {
+        setStatus('ready');
+      });
     });
 
     return () => {
