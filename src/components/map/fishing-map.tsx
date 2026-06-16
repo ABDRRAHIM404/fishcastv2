@@ -244,7 +244,7 @@ setTimeout(() => {
       <div ref={containerRef} className="absolute inset-0" />
 
       {status === 'loading' ? (
-        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-background/80 backdrop-blur-sm">
+        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-background/80 backdrop-blur-sm pointer-events-none opacity-50">
           <Loader2 className="size-6 animate-spin text-primary" />
           <p className="text-sm text-muted-foreground">Loading map…</p>
         </div>
