@@ -1,10 +1,9 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
-import { Loader2, MapPinned } from 'lucide-react';
 import { MAP_CONFIG } from '@/config/map';
 import { SPOT_TYPE_LABELS, DIFFICULTY_LABELS, type Spot } from '@/types/spot';
 import { cn } from '@/lib/utils';
@@ -44,30 +43,13 @@ function toFeatureCollection(spots: Spot[]): GeoJSON.FeatureCollection {
   };
 }
 
-/**
- * Interactive Mapbox map for fishing spots.
- * - Dark ocean style, clustering, smooth fly-to, mobile-friendly controls.
- * - Clicking an unclustered marker navigates to the spot details page.
- */
 export function FishingMap({ spots, className }: FishingMapProps) {
   const router = useRouter();
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
-  const [status, setStatus] = useState<'loading' | 'ready' | 'error'>(
-    'loading'
-  );
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!TOKEN) {
-      const message =
-        'Map unavailable: NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN is not set.';
-      console.error(message);
-      setErrorMessage(message);
-      setStatus('error');
-      return;
-    }
-    if (!containerRef.current || mapRef.current) return;
+    if (!TOKEN || !containerRef.current || mapRef.current) return;
 
     mapboxgl.accessToken = TOKEN;
 
@@ -83,28 +65,14 @@ export function FishingMap({ spots, className }: FishingMapProps) {
         attributionControl: false,
       });
     } catch (err) {
-      const errorText =
-        err instanceof Error ? err.message : 'Failed to initialize the map.';
       console.error('FishingMap initialization error:', err);
-      setErrorMessage(errorText);
-      setStatus('error');
       return;
     }
 
     mapRef.current = map;
-    // Hard fallback: force ready after 5 seconds regardless
-     const fallbackTimer = setTimeout(() => {
-      setStatus('ready');
-     }, 5000);
 
     map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), 'top-right');
     map.addControl(new mapboxgl.AttributionControl({ compact: true }));
-
-    map.on('error', (e) => {
-      console.error('Mapbox error event:', e.error);
-      setErrorMessage(e.error?.message ?? 'Map failed to load.');
-      setStatus('error');
-    });
 
     map.on('load', () => {
       map.addSource('spots', {
@@ -115,7 +83,6 @@ export function FishingMap({ spots, className }: FishingMapProps) {
         clusterRadius: 48,
       });
 
-      // Cluster circles.
       map.addLayer({
         id: 'clusters',
         type: 'circle',
@@ -142,7 +109,6 @@ export function FishingMap({ spots, className }: FishingMapProps) {
         paint: { 'text-color': '#06121d' },
       });
 
-      // Individual spot markers.
       map.addLayer({
         id: 'spot-markers',
         type: 'circle',
@@ -156,29 +122,22 @@ export function FishingMap({ spots, className }: FishingMapProps) {
         },
       });
 
-      // After map.on('load', ...) sets up layers, replace the fitBounds call with:
-setTimeout(() => {
-  if (spots.length > 1) {
-    const bounds = new mapboxgl.LngLatBounds();
-    spots.forEach((s) => bounds.extend([s.longitude, s.latitude]));
-    map.fitBounds(bounds, {
-      padding: MAP_CONFIG.fitBoundsPadding,
-      maxZoom: 11,
-      duration: 0,
-    });
-  }
-}, 100);
-
-      // Expand clusters on click (mapbox-gl v3 returns a Promise).
-      map.on('click', 'clusters', (e) => {
-        const features = map.queryRenderedFeatures(e.point, {
-          layers: ['clusters'],
+      if (spots.length > 1) {
+        const bounds = new mapboxgl.LngLatBounds();
+        spots.forEach((s) => bounds.extend([s.longitude, s.latitude]));
+        map.fitBounds(bounds, {
+          padding: MAP_CONFIG.fitBoundsPadding,
+          maxZoom: 11,
+          duration: 0,
         });
+      }
+
+      map.on('click', 'clusters', (e) => {
+        const features = map.queryRenderedFeatures(e.point, { layers: ['clusters'] });
         const feature = features[0];
         const clusterId = feature?.properties?.cluster_id;
         const source = map.getSource('spots') as mapboxgl.GeoJSONSource;
         if (clusterId == null || !source) return;
-
         source.getClusterExpansionZoom(clusterId, (err, zoom) => {
           if (err || zoom == null) return;
           if (feature?.geometry.type === 'Point') {
@@ -190,7 +149,6 @@ setTimeout(() => {
         });
       });
 
-      // Popup + navigation for individual markers.
       const popup = new mapboxgl.Popup({
         closeButton: false,
         closeOnClick: false,
@@ -201,18 +159,12 @@ setTimeout(() => {
         map.getCanvas().style.cursor = 'pointer';
         const feature = e.features?.[0];
         if (!feature || feature.geometry.type !== 'Point') return;
-        const { name, spotType, difficulty } = feature.properties as Record<
-          string,
-          string
-        >;
-        const nameText = escapeHtml(String(name ?? ''));
-        const spotTypeText = escapeHtml(String(spotType ?? ''));
-        const difficultyText = escapeHtml(String(difficulty ?? ''));
+        const { name, spotType, difficulty } = feature.properties as Record<string, string>;
         popup
           .setLngLat(feature.geometry.coordinates as [number, number])
           .setHTML(
-            `<div style="font-family:inherit"><strong>${nameText}</strong><br/>` +
-              `<span style="opacity:.7">${spotTypeText} · ${difficultyText}</span></div>`
+            `<div style="font-family:inherit"><strong>${escapeHtml(String(name ?? ''))}</strong><br/>` +
+            `<span style="opacity:.7">${escapeHtml(String(spotType ?? ''))} · ${escapeHtml(String(difficulty ?? ''))}</span></div>`
           )
           .addTo(map);
       });
@@ -226,16 +178,12 @@ setTimeout(() => {
         const slug = e.features?.[0]?.properties?.slug;
         if (typeof slug === 'string') router.push(`/spots/${slug}`);
       });
-
-        setTimeout(() => setStatus('ready'), 100);  
-      });
+    });
 
     return () => {
-     clearTimeout(fallbackTimer);
       map.remove();
       mapRef.current = null;
     };
-    // spots are server-provided and stable per render; re-init only on mount.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -247,22 +195,6 @@ setTimeout(() => {
       )}
     >
       <div ref={containerRef} className="absolute inset-0" />
-
-      {status === 'loading' ? (
-        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-background/80 backdrop-blur-sm pointer-events-none opacity-50">
-          <Loader2 className="size-6 animate-spin text-primary" />
-          <p className="text-sm text-muted-foreground">Loading map…</p>
-        </div>
-      ) : null}
-
-      {status === 'error' ? (
-        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-background/90 p-6 text-center">
-          <MapPinned className="size-6 text-muted-foreground" />
-          <p className="max-w-sm text-sm text-muted-foreground">
-            {errorMessage ?? 'The map could not be loaded.'}
-          </p>
-        </div>
-      ) : null}
     </div>
   );
 }
