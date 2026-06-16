@@ -59,6 +59,8 @@ export function FishingMap({ spots, className }: FishingMapProps) {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
+  console.log('TOKEN value:', TOKEN);
+  console.log('TOKEN type:', typeof TOKEN);
     if (!TOKEN) {
       const message =
         'Map unavailable: NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN is not set.';
