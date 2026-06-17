@@ -44,7 +44,7 @@ describe('detectWindows', () => {
     expect(w[0]!.end).toBe(pts[2]!.time);
   });
 
-  it('splits contiguous bands and ranks best-first', () => {
+  it('splits contiguous bands and preserves chronological order', () => {
     const pts = [
       pt('2026-06-14T00:00:00.000Z', 3), // Poor
       pt('2026-06-14T00:05:00.000Z', 7), // Good
@@ -52,8 +52,8 @@ describe('detectWindows', () => {
       pt('2026-06-14T00:15:00.000Z', 9), // Excellent
     ];
     const w = detectWindows(pts);
-    expect(w.map((x) => x.label)).toEqual(['Excellent', 'Good', 'Poor']);
-    const top = w[0]!;
+    expect(w.map((x) => x.label)).toEqual(['Poor', 'Good', 'Excellent']);
+    const top = w[2]!;
     expect(top.peakScore).toBe(9);
     expect(top.start).toBe('2026-06-14T00:10:00.000Z');
     expect(top.end).toBe('2026-06-14T00:15:00.000Z');

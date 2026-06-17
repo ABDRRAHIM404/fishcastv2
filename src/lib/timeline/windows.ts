@@ -17,84 +17,91 @@ export function labelForScore(score: number): WindowLabel {
   return 'Poor';
 }
 
-const RANK: Record<WindowLabel, number> = {
-  Excellent: 0,
-  Good: 1,
-  Moderate: 2,
-  Poor: 3,
+const MERGE_GAP_STEPS = 6; // 30 minutes / 5-minute increments
+
+type LabelSegment = {
+  startIdx: number;
+  endIdx: number;
+  label: WindowLabel;
 };
 
-const MAX_WINDOW_STEPS = 24; // 2 hours / 5 minutes
-
-function buildWindowSegment(
-  points: TimelinePoint[],
-  from: number,
-  to: number,
-  label: WindowLabel
-): FishingWindow[] {
-  const windows: FishingWindow[] = [];
-
-  if (label === 'Poor') {
-    let peakIdx = from;
-    for (let i = from; i <= to; i++) {
-      if (points[i]!.score > points[peakIdx]!.score) peakIdx = i;
-    }
-    windows.push({
-      start: points[from]!.time,
-      end: points[to]!.time,
-      peakTime: points[peakIdx]!.time,
-      peakScore: points[peakIdx]!.score,
-      label,
-    });
-    return windows;
+function buildWindow(pointSegment: LabelSegment, points: TimelinePoint[]): FishingWindow {
+  let peakIdx = pointSegment.startIdx;
+  for (let i = pointSegment.startIdx; i <= pointSegment.endIdx; i++) {
+    if (points[i]!.score > points[peakIdx]!.score) peakIdx = i;
   }
 
-  let segmentStart = from;
-  while (segmentStart <= to) {
-    const segmentEnd = Math.min(to, segmentStart + MAX_WINDOW_STEPS - 1);
-    let peakIdx = segmentStart;
-    for (let i = segmentStart; i <= segmentEnd; i++) {
-      if (points[i]!.score > points[peakIdx]!.score) peakIdx = i;
+  return {
+    start: points[pointSegment.startIdx]!.time,
+    end: points[pointSegment.endIdx]!.time,
+    peakTime: points[peakIdx]!.time,
+    peakScore: points[peakIdx]!.score,
+    label: pointSegment.label,
+  };
+}
+
+function mergeSmallGaps(segments: LabelSegment[]): LabelSegment[] {
+  if (segments.length < 3) return segments;
+
+  const merged: LabelSegment[] = [];
+  let i = 0;
+
+  while (i < segments.length) {
+    const current = segments[i]!;
+
+    if (
+      i > 0 &&
+      i < segments.length - 1 &&
+      current.label === 'Poor' &&
+      current.endIdx - current.startIdx + 1 <= MERGE_GAP_STEPS
+    ) {
+      const previous = merged[merged.length - 1]!;
+      const next = segments[i + 1]!;
+      if (previous.label !== 'Poor' && next.label !== 'Poor') {
+        const mergedLabel = previous.label === next.label
+          ? previous.label
+          : previous.label === 'Excellent' || next.label === 'Excellent'
+          ? 'Excellent'
+          : 'Good';
+
+        previous.endIdx = next.endIdx;
+        previous.label = mergedLabel;
+        i += 2;
+        continue;
+      }
     }
-    windows.push({
-      start: points[segmentStart]!.time,
-      end: points[segmentEnd]!.time,
-      peakTime: points[peakIdx]!.time,
-      peakScore: points[peakIdx]!.score,
-      label,
-    });
-    segmentStart = segmentEnd + 1;
+
+    merged.push(current);
+    i += 1;
   }
 
-  return windows;
+  return merged;
 }
 
 /**
  * Detects contiguous windows of equal label across the timeline points and
- * returns them ranked best-first (then earliest). Each window carries its
- * start/end plus the peak score time within it. Windows are capped at 2 hours.
+ * returns them in chronological order. Each window carries its start/end plus
+ * the peak score time within that window.
  */
 export function detectWindows(points: TimelinePoint[]): FishingWindow[] {
   if (points.length === 0) return [];
 
-  const windows: FishingWindow[] = [];
+  const segments: LabelSegment[] = [];
   let startIdx = 0;
   let currentLabel = labelForScore(points[0]!.score);
 
   for (let i = 1; i < points.length; i++) {
     const label = labelForScore(points[i]!.score);
     if (label !== currentLabel) {
-      windows.push(...buildWindowSegment(points, startIdx, i - 1, currentLabel));
+      segments.push({ startIdx, endIdx: i - 1, label: currentLabel });
       startIdx = i;
       currentLabel = label;
     }
   }
-  windows.push(...buildWindowSegment(points, startIdx, points.length - 1, currentLabel));
+  segments.push({ startIdx, endIdx: points.length - 1, label: currentLabel });
 
-  return windows.sort((a, b) => {
-    if (RANK[a.label] !== RANK[b.label]) return RANK[a.label] - RANK[b.label];
-    return new Date(a.start).getTime() - new Date(b.start).getTime();
-  });
+  const normalized = mergeSmallGaps(segments);
+  return normalized.map((segment) => buildWindow(segment, points));
 }
 
 function localDayKey(iso: string): string {
