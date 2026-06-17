@@ -18,6 +18,9 @@ export function labelForScore(score: number): WindowLabel {
 }
 
 const MERGE_GAP_STEPS = 6; // 30 minutes / 5-minute increments
+const PREFERRED_WINDOW_STEPS = 36; // 3 hours
+const MAX_WINDOW_STEPS = 48; // 4 hours hard cap
+const MIN_WINDOW_STEPS = 8; // 40 minutes - avoid tiny fallback windows
 
 type LabelSegment = {
   startIdx: number;
@@ -38,6 +41,41 @@ function buildWindow(pointSegment: LabelSegment, points: TimelinePoint[]): Fishi
     peakScore: points[peakIdx]!.score,
     label: pointSegment.label,
   };
+}
+
+function splitLongSegment(segment: LabelSegment): LabelSegment[] {
+  const length = segment.endIdx - segment.startIdx + 1;
+  if (segment.label === 'Poor' || length <= MAX_WINDOW_STEPS) return [segment];
+
+  const chunks: LabelSegment[] = [];
+  let start = segment.startIdx;
+
+  while (start <= segment.endIdx) {
+    let end = Math.min(start + PREFERRED_WINDOW_STEPS - 1, segment.endIdx);
+    const remaining = segment.endIdx - end;
+
+    if (
+      remaining > 0 &&
+      remaining < MIN_WINDOW_STEPS &&
+      chunks.length > 0
+    ) {
+      const previous = chunks[chunks.length - 1]!;
+      const combinedLength = end - previous.startIdx + 1 + remaining;
+      if (combinedLength <= MAX_WINDOW_STEPS) {
+        previous.endIdx = segment.endIdx;
+        break;
+      }
+    }
+
+    if (end - start + 1 > MAX_WINDOW_STEPS) {
+      end = start + MAX_WINDOW_STEPS - 1;
+    }
+
+    chunks.push({ startIdx: start, endIdx: end, label: segment.label });
+    start = end + 1;
+  }
+
+  return chunks;
 }
 
 function mergeSmallGaps(segments: LabelSegment[]): LabelSegment[] {
@@ -101,7 +139,8 @@ export function detectWindows(points: TimelinePoint[]): FishingWindow[] {
   segments.push({ startIdx, endIdx: points.length - 1, label: currentLabel });
 
   const normalized = mergeSmallGaps(segments);
-  return normalized.map((segment) => buildWindow(segment, points));
+  const split = normalized.flatMap((segment) => splitLongSegment(segment));
+  return split.map((segment) => buildWindow(segment, points));
 }
 
 function localDayKey(iso: string): string {

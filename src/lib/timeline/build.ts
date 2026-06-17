@@ -43,6 +43,8 @@ function synthMarine(
     waveHeightM: number | null;
     precipitationMm: number | null;
     cloudCoverPct: number | null;
+    pressureMb: number | null;
+    pressureTrendMbPerHr: number | null;
     tideHeightM: number | null;
     tideRising: 'rising' | 'falling' | null;
   }
@@ -51,7 +53,9 @@ function synthMarine(
     spotId,
     generatedAt: iso,
     weather:
-      v.precipitationMm === null && v.cloudCoverPct === null
+      v.precipitationMm === null &&
+      v.cloudCoverPct === null &&
+      v.pressureMb === null
         ? { status: 'error', message: 'no data' }
         : {
             status: 'ok',
@@ -63,6 +67,8 @@ function synthMarine(
               humidityPct: null,
               cloudCoverPct: v.cloudCoverPct,
               precipitationMm: v.precipitationMm,
+              pressureMb: v.pressureMb,
+              pressureTrendMbPerHr: v.pressureTrendMbPerHr,
               weatherCode: null,
             },
           },
@@ -130,6 +136,7 @@ export function buildTimeline(
     anchors.weather.precipitationMm
   );
   const cloud = toSamples(anchors.weather.time, anchors.weather.cloudCoverPct);
+  const pressure = toSamples(anchors.weather.time, anchors.weather.pressureMb);
   const tide = toSamples(
     anchors.tide.map((p) => p.time),
     anchors.tide.map((p) => p.heightM)
@@ -154,6 +161,13 @@ export function buildTimeline(
     const windSpeedKmh = linearAt(windSpeed, ms);
     const windDirectionDeg = circularAt(windDir, ms);
     const waveHeightM = linearAt(wave, ms);
+    const pressureMb = linearAt(pressure, ms);
+    const prevPressureMb =
+      i > 0 ? linearAt(pressure, marks[i - 1]!) : null;
+    const pressureTrendMbPerHr =
+      pressureMb === null || prevPressureMb === null
+        ? null
+        : (pressureMb - prevPressureMb) * 12;
 
     const marine = synthMarine(spotId, iso, {
       windSpeedKmh,
@@ -161,6 +175,8 @@ export function buildTimeline(
       waveHeightM,
       precipitationMm: linearAt(precip, ms),
       cloudCoverPct: linearAt(cloud, ms),
+      pressureMb,
+      pressureTrendMbPerHr,
       tideHeightM,
       tideRising,
     });

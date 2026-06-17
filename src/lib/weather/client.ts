@@ -19,6 +19,7 @@ export interface OpenMeteoForecastResponse {
     wind_speed_10m?: number;
     wind_gusts_10m?: number;
     wind_direction_10m?: number;
+    surface_pressure?: number;
   };
 }
 
@@ -32,6 +33,7 @@ const CURRENT_FIELDS = [
   'wind_speed_10m',
   'wind_gusts_10m',
   'wind_direction_10m',
+  'surface_pressure',
 ].join(',');
 
 export async function fetchOpenMeteoForecast(

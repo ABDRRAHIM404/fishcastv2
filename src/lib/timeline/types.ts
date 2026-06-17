@@ -62,6 +62,7 @@ export interface ForecastAnchors {
     time: string[];
     precipitationMm: (number | null)[];
     cloudCoverPct: (number | null)[];
+    pressureMb: (number | null)[];
   };
   /** Sub-hourly tide height anchors. */
   tide: { time: string; heightM: number }[];

@@ -14,6 +14,9 @@ import {
   scoreSwell,
   scoreWeather,
   scoreTide,
+  scorePressure,
+  scoreMoon,
+  scoreTimeOfDay,
 } from '@/lib/scoring/rules';
 import { explainFactor } from '@/lib/scoring/explain';
 import type { FactorKey, FactorScore, ScoreResult } from '@/lib/scoring/types';
@@ -25,6 +28,8 @@ const FACTOR_LABELS: Record<FactorKey, string> = {
   swell: 'Swell',
   weather: 'Weather',
   tide: 'Tide',
+  pressure: 'Pressure',
+  moon: 'Moon phase',
   timeOfDay: 'Time of day',
 };
 
@@ -48,8 +53,14 @@ function rawFactorScore(
         : null;
     case 'tide':
       return marine.tide.status === 'ok' ? scoreTide(marine.tide.data) : null;
+    case 'pressure':
+      return marine.weather.status === 'ok'
+        ? scorePressure(marine.weather.data)
+        : null;
+    case 'moon':
+      return scoreMoon(marine);
     case 'timeOfDay':
-      return null; // disabled in Phase 6
+      return scoreTimeOfDay(marine);
   }
 }
 

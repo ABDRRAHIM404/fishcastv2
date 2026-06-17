@@ -43,7 +43,8 @@ export function DailyWindows({ dailyWindows }: { dailyWindows: DailyFishingWindo
   return (
     <div className="space-y-4">
       {dailyWindows.map((day) => {
-        const ranked = day.windows.filter((w) => w.label !== 'Poor');
+        const excellent = day.windows.filter((w) => w.label === 'Excellent');
+        const fallback = excellent.length > 0 ? excellent : [day.windows[0]!].filter(Boolean);
         return (
           <div key={day.date} className="rounded-3xl border border-border/60 bg-background/50 p-4">
             <div className="mb-3 flex items-center justify-between gap-4">
@@ -57,12 +58,19 @@ export function DailyWindows({ dailyWindows }: { dailyWindows: DailyFishingWindo
                 {day.date}
               </span>
             </div>
-            {ranked.length === 0 ? (
+            {fallback.length === 0 ? (
               <div className="rounded-lg border border-dashed border-border/60 px-4 py-6 text-center text-sm text-muted-foreground">
-                No favorable fishing windows for this day.
+                No fishing windows available for this day.
               </div>
             ) : (
-              <ul className="space-y-2">{ranked.map(renderWindow)}</ul>
+              <>
+                {excellent.length === 0 ? (
+                  <div className="mb-3 rounded-lg border border-border/60 bg-muted/10 px-4 py-3 text-sm text-muted-foreground">
+                    No Excellent windows detected. Showing the best available window.
+                  </div>
+                ) : null}
+                <ul className="space-y-2">{fallback.map(renderWindow)}</ul>
+              </>
             )}
           </div>
         );

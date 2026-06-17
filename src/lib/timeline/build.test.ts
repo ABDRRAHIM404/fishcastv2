@@ -26,6 +26,7 @@ function flatAnchors(): ForecastAnchors {
       time,
       precipitationMm: Array(n).fill(0),
       cloudCoverPct: Array(n).fill(60),
+      pressureMb: Array(n).fill(1018),
     },
     tide: time.map((t, i) => ({
       time: t,
@@ -65,7 +66,7 @@ describe('buildTimeline', () => {
     const empty: ForecastAnchors = {
       wind: { time: [], speedKmh: [], directionDeg: [] },
       waves: { time: [], heightM: [] },
-      weather: { time: [], precipitationMm: [], cloudCoverPct: [] },
+      weather: { time: [], precipitationMm: [], cloudCoverPct: [], pressureMb: [] },
       tide: [],
     };
     const tl = buildTimeline('spot-1', date, dayStart, empty, NOW);
@@ -79,7 +80,7 @@ describe('buildTimeline', () => {
     const single: ForecastAnchors = {
       wind: { time: t, speedKmh: [10], directionDeg: [180] },
       waves: { time: t, heightM: [0.5] },
-      weather: { time: t, precipitationMm: [0], cloudCoverPct: [50] },
+      weather: { time: t, precipitationMm: [0], cloudCoverPct: [50], pressureMb: [1018] },
       tide: [{ time: t[0]!, heightM: 1.5 }],
     };
     const tl = buildTimeline('spot-1', date, dayStart, single, NOW);

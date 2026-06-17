@@ -17,21 +17,26 @@ export const SCORE_TTL_MS = 30 * 60 * 1000;
  * total. Time-of-day is included for architecture but disabled in Phase 6.
  */
 export const FACTOR_WEIGHTS: Record<FactorKey, number> = {
-  wind: 0.3,
-  wave: 0.25,
-  swell: 0.15,
-  weather: 0.15,
-  tide: 0.15,
-  timeOfDay: 0,
+  wind: 0.24,
+  wave: 0.18,
+  swell: 0.12,
+  weather: 0.14,
+  tide: 0.12,
+  pressure: 0.1,
+  moon: 0.05,
+  timeOfDay: 0.05,
 };
 
-/** Factors evaluated in Phase 6 (time-of-day intentionally excluded). */
+/** Factors evaluated in Phase 6, including diurnal + lunar support. */
 export const ENABLED_FACTORS: readonly FactorKey[] = [
   'wind',
   'wave',
   'swell',
   'weather',
   'tide',
+  'pressure',
+  'moon',
+  'timeOfDay',
 ] as const;
 
 /**

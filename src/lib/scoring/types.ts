@@ -10,6 +10,8 @@ export type FactorKey =
   | 'swell'
   | 'weather'
   | 'tide'
+  | 'pressure'
+  | 'moon'
   | 'timeOfDay';
 
 /** A single evaluated factor. */

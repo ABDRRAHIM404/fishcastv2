@@ -24,6 +24,7 @@ export interface HourlyForecastSeries {
   weatherCode: (number | null)[];
   precipitationMm: (number | null)[];
   cloudCoverPct: (number | null)[];
+  pressureMb: (number | null)[];
 }
 
 export interface HourlyMarineSeries {
@@ -46,6 +47,7 @@ interface RawOpenMeteoForecast {
     weather_code?: (number | null)[];
     precipitation?: (number | null)[];
     cloud_cover?: (number | null)[];
+    surface_pressure?: (number | null)[];
   };
 }
 
@@ -75,7 +77,7 @@ export async function fetchHourlyForecast(
     latitude: lat,
     longitude: lng,
     hourly:
-      'wind_speed_10m,wind_direction_10m,weather_code,precipitation,cloud_cover',
+      'wind_speed_10m,wind_direction_10m,weather_code,precipitation,cloud_cover,surface_pressure',
     wind_speed_unit: 'kmh',
     timezone: 'auto',
     forecast_days: 3,
@@ -89,6 +91,7 @@ export async function fetchHourlyForecast(
     weatherCode: arr(h.weather_code),
     precipitationMm: arr(h.precipitation),
     cloudCoverPct: arr(h.cloud_cover),
+    pressureMb: arr(h.surface_pressure),
   };
 }
 

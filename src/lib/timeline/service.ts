@@ -117,8 +117,9 @@ export async function getTimelineForSpot(
             time: forecast.value.time,
             precipitationMm: forecast.value.precipitationMm,
             cloudCoverPct: forecast.value.cloudCoverPct,
+            pressureMb: forecast.value.pressureMb,
           }
-        : { time: [], precipitationMm: [], cloudCoverPct: [] },
+        : { time: [], precipitationMm: [], cloudCoverPct: [], pressureMb: [] },
     tide: tide.status === 'fulfilled' ? tide.value : [],
   };
 

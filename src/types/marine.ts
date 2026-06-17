@@ -31,6 +31,10 @@ export interface WeatherConditions {
   cloudCoverPct: number | null;
   /** Precipitation for the period, millimetres. */
   precipitationMm: number | null;
+  /** Surface pressure in millibars. */
+  pressureMb: number | null;
+  /** Barometric trend in millibars per hour. */
+  pressureTrendMbPerHr: number | null;
   /** Open-Meteo WMO weather code, kept for a future icon mapping. */
   weatherCode: number | null;
 }
@@ -75,6 +79,18 @@ export interface TideConditions {
   extremes: TideExtreme[];
 }
 
+export interface AstronomyConditions {
+  observedAt: string;
+  /** Normalized moon phase [0=New, 0.5=Full, 1=New]. */
+  moonPhase: number | null;
+  /** Moon illumination as a percentage [0-100]. */
+  moonIlluminationPct: number | null;
+  /** Solunar transit alignment score [0-1] for overhead/underfoot timing. */
+  moonTransitScore: number | null;
+  /** Time-of-day light factor [0-1], with dawn and dusk boosted. */
+  timeOfDayScore: number | null;
+}
+
 /** A sub-section that either resolved with data or failed gracefully. */
 export type MarineSection<T> =
   | { status: 'ok'; data: T; cachedAt: string }
@@ -92,6 +108,7 @@ export interface MarineConditions {
   wind: MarineSection<WindConditions>;
   waves: MarineSection<WaveConditions>;
   tide: MarineSection<TideConditions>;
+  astronomy?: MarineSection<AstronomyConditions>;
 }
 
 const COMPASS_POINTS: readonly CompassDirection[] = [

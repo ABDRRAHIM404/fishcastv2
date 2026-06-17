@@ -18,6 +18,8 @@ export function normalizeWeather(
     humidityPct: num(c.relative_humidity_2m),
     cloudCoverPct: num(c.cloud_cover),
     precipitationMm: num(c.precipitation),
+    pressureMb: num(c.surface_pressure),
+    pressureTrendMbPerHr: null,
     weatherCode: num(c.weather_code),
   };
 }

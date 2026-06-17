@@ -74,6 +74,8 @@ describe('factor rules return null on missing data', () => {
       humidityPct: null,
       cloudCoverPct: null,
       precipitationMm: null,
+      pressureMb: null,
+      pressureTrendMbPerHr: null,
       weatherCode: null,
     };
     expect(scoreWeather(weather)).toBeNull();

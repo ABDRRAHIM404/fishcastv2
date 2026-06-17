@@ -58,7 +58,20 @@ export function explainFactor(
         ? `Tide ${trend} — ${b}.`
         : `Tide slack — ${b}.`;
     }
+    case 'pressure': {
+      if (marine.weather.status !== 'ok') return `Pressure: ${b}.`;
+      const p = marine.weather.data.pressureMb;
+      return p == null
+        ? `Pressure: ${b}.`
+        : `Pressure ${p.toFixed(0)} mb — ${b}.`;
+    }
+    case 'moon': {
+      if (marine.weather.status !== 'ok' && marine.tide.status !== 'ok') {
+        return `Moon phase: ${b}.`;
+      }
+      return `Moon phase — ${b}.`;
+    }
     case 'timeOfDay':
-      return 'Not evaluated in this phase.';
+      return 'Time of day score based on dawn/dusk timing.';
   }
 }

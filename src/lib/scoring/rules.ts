@@ -10,6 +10,7 @@ import {
   WEATHER,
 } from '@/lib/scoring/constants';
 import type {
+  MarineConditions,
   WeatherConditions,
   WindConditions,
   WaveConditions,
@@ -84,6 +85,87 @@ export function scoreWeather(d: WeatherConditions): number | null {
 
   // Weighted blend, precipitation weighted heavier.
   return clamp01(precipScore * 0.7 + cloudScore * 0.3);
+}
+
+export function scorePressure(d: WeatherConditions): number | null {
+  if (d.pressureMb === null) return null;
+
+  // Pressure nearest 1018 mb is ideal; too low or too high both reduce fishability.
+  const deviation = Math.abs(d.pressureMb - 1018);
+  const base = clamp01(1 - deviation / 18);
+
+  let trendModifier = 1;
+  if (d.pressureTrendMbPerHr !== null) {
+    if (d.pressureTrendMbPerHr < -1.0) trendModifier = 0.75;
+    else if (d.pressureTrendMbPerHr < 0) trendModifier = 0.9;
+    else if (d.pressureTrendMbPerHr > 1.0) trendModifier = 1.05;
+  }
+
+  return clamp01(base * trendModifier);
+}
+
+function normalizedMoonPhase(iso: string): number {
+  const date = new Date(iso);
+  const year = date.getUTCFullYear();
+  const month = date.getUTCMonth() + 1;
+  const day = date.getUTCDate() +
+    date.getUTCHours() / 24 +
+    date.getUTCMinutes() / 1440 +
+    date.getUTCSeconds() / 86400;
+
+  const yy = year - Math.floor((12 - month) / 10);
+  let mm = month + 9;
+  if (mm >= 12) {
+    mm -= 12;
+  }
+  const k1 = Math.floor(365.25 * (yy + 4712));
+  const k2 = Math.floor(30.6 * mm + 0.5);
+  const jd = k1 + k2 + day - 1524.5;
+  const daysSinceNew = jd - 2451549.5;
+  const newMoons = daysSinceNew / 29.530588853;
+  return newMoons - Math.floor(newMoons);
+}
+
+export function scoreMoon(marine: MarineConditions): number | null {
+  const time =
+    marine.weather.status === 'ok'
+      ? marine.weather.data.observedAt
+      : marine.tide.status === 'ok'
+      ? marine.tide.data.observedAt
+      : null;
+  if (time === null) return null;
+
+  const phase = normalizedMoonPhase(time);
+  const newMoonCloseness = Math.min(phase, 1 - phase);
+  const fullMoonCloseness = Math.abs(phase - 0.5);
+  const moonScore = 1 - Math.min(newMoonCloseness, fullMoonCloseness) * 2;
+
+  return clamp01(moonScore);
+}
+
+function timeOfDayScore(iso: string): number {
+  const date = new Date(iso);
+  const hour = date.getHours();
+
+  if ((hour >= 5 && hour < 8) || (hour >= 17 && hour < 20)) {
+    return 1;
+  }
+  if ((hour >= 8 && hour < 11) || (hour >= 14 && hour < 17) || (hour >= 20 && hour < 22)) {
+    return 0.8;
+  }
+  return 0.55;
+}
+
+export function scoreTimeOfDay(marine: MarineConditions): number | null {
+  const time =
+    marine.weather.status === 'ok'
+      ? marine.weather.data.observedAt
+      : marine.tide.status === 'ok'
+      ? marine.tide.data.observedAt
+      : null;
+  if (time === null) return null;
+
+  return clamp01(timeOfDayScore(time));
 }
 
 export function scoreTide(d: TideConditions): number | null {
