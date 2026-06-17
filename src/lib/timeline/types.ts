@@ -31,6 +31,13 @@ export interface FishingWindow {
   label: WindowLabel;
 }
 
+export interface DailyFishingWindows {
+  /** Local day, YYYY-MM-DD. */
+  date: string;
+  /** Best fishing windows for this specific local day. */
+  windows: FishingWindow[];
+}
+
 /** The full computed timeline for a spot and local date. */
 export interface Timeline {
   spotId: string;
@@ -38,8 +45,10 @@ export interface Timeline {
   date: string;
   /** 5-minute increments spanning the rolling 48-hour window (576 points). */
   points: TimelinePoint[];
-  /** Ranked best fishing windows. */
+  /** Ranked best fishing windows across the full window. */
   windows: FishingWindow[];
+  /** Ranked best fishing windows per calendar day. */
+  dailyWindows: DailyFishingWindows[];
   /** ISO timestamp the timeline was computed. */
   generatedAt: string;
 }

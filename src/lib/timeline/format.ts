@@ -17,43 +17,69 @@ const LOCAL_DAY_WITH_YEAR_FORMAT = new Intl.DateTimeFormat('en-GB', {
   year: 'numeric',
 });
 
-const TIME_FORMAT = new Intl.DateTimeFormat('en-GB', {
-  hour: '2-digit',
-  minute: '2-digit',
-});
-
-function localDayStart(ms: number): number {
-  const d = new Date(ms);
-  return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+function parseIsoLocalDate(iso: string): string {
+  return iso.slice(0, 10);
 }
 
-function dayOffset(startIso: string, now = new Date()): string {
-  const start = new Date(startIso);
-  const today = localDayStart(now.getTime());
-  const pointDay = localDayStart(start.getTime());
-  const diffDays = Math.round((pointDay - today) / 86_400_000);
+function parseIsoLocalDateParts(iso: string): [number, number, number] {
+  return iso.slice(0, 10).split('-').map(Number) as [number, number, number];
+}
+
+function parseIsoLocalTime(iso: string): string {
+  return iso.slice(11, 16);
+}
+
+function formatLocalDate(dateParts: [number, number, number], format: Intl.DateTimeFormat): string {
+  const [year, month, day] = dateParts;
+  return format.format(new Date(Date.UTC(year, month - 1, day)));
+}
+
+function dayOffset(startIso: string, referenceIso: string): string {
+  const [startYear, startMonth, startDay] = parseIsoLocalDateParts(startIso);
+  const [refYear, refMonth, refDay] = parseIsoLocalDateParts(referenceIso);
+  const startDate = new Date(Date.UTC(startYear, startMonth - 1, startDay));
+  const referenceDate = new Date(Date.UTC(refYear, refMonth - 1, refDay));
+  const diffDays = Math.round((startDate.getTime() - referenceDate.getTime()) / 86_400_000);
 
   if (diffDays === 0) return 'Today';
   if (diffDays === 1) return 'Tomorrow';
-  return DOMESTIC_DATE_FORMAT.format(start);
+  return formatLocalDate([startYear, startMonth, startDay], DOMESTIC_DATE_FORMAT);
 }
 
 export function formatTimeLabel(iso: string): string {
-  return TIME_FORMAT.format(new Date(iso));
+  return parseIsoLocalTime(iso);
 }
 
-export function formatScrubberLabel(iso: string, now = new Date()): string {
-  return `${dayOffset(iso, now)} · ${formatTimeLabel(iso)}`;
+export function formatScrubberLabel(
+  iso: string,
+  referenceIso = new Date().toISOString()
+): string {
+  return `${dayOffset(iso, referenceIso)} · ${formatTimeLabel(iso)}`;
 }
 
 export function formatWindowLabel(
   startIso: string,
   endIso: string,
-  now = new Date()
+  referenceIso = new Date().toISOString()
 ): string {
-  return `${dayOffset(startIso, now)} · ${formatTimeLabel(startIso)} – ${formatTimeLabel(
+  return `${dayOffset(startIso, referenceIso)} · ${formatTimeLabel(startIso)} – ${formatTimeLabel(
     endIso
   )}`;
+}
+
+export function formatDaySectionLabel(
+  date: string,
+  referenceIso = new Date().toISOString()
+): string {
+  const [dayYear, dayMonth, dayDay] = parseIsoLocalDateParts(date);
+  const [refYear, refMonth, refDay] = parseIsoLocalDateParts(referenceIso);
+  const dayDate = new Date(Date.UTC(dayYear, dayMonth - 1, dayDay));
+  const referenceDate = new Date(Date.UTC(refYear, refMonth - 1, refDay));
+  const diffDays = Math.round((dayDate.getTime() - referenceDate.getTime()) / 86_400_000);
+
+  if (diffDays === 0) return 'Today';
+  if (diffDays === 1) return 'Tomorrow';
+  return formatLocalDate([dayYear, dayMonth, dayDay], LOCAL_DAY_FORMAT);
 }
 
 export function formatTimelineRange(
@@ -76,3 +102,5 @@ export function formatTimelineRange(
   const endWithoutYear = LOCAL_DAY_FORMAT.format(end);
   return `${startLabel} – ${endWithoutYear} ${end.getFullYear()}`;
 }
+
+export { parseIsoLocalDate };

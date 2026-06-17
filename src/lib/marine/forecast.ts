@@ -78,7 +78,7 @@ export async function fetchHourlyForecast(
       'wind_speed_10m,wind_direction_10m,weather_code,precipitation,cloud_cover',
     wind_speed_unit: 'kmh',
     timezone: 'auto',
-    forecast_days: 2,
+    forecast_days: 3,
   });
   const raw = await fetchJson<RawOpenMeteoForecast>(url);
   const h = raw.hourly ?? {};
@@ -102,7 +102,7 @@ export async function fetchHourlyMarine(
     longitude: lng,
     hourly: 'wave_height,swell_wave_height',
     timezone: 'auto',
-    forecast_days: 2,
+    forecast_days: 3,
   });
   const raw = await fetchJson<RawOpenMeteoMarine>(url);
   const h = raw.hourly ?? {};
@@ -126,7 +126,7 @@ export async function fetchTideSeries(
     lat,
     lon: lng,
     key,
-    days: 2,
+    days: 3,
   });
   const raw = await fetchJson<RawWorldTides>(url);
   if (raw.error) throw new Error(`WorldTides error: ${raw.error}`);

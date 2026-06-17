@@ -15,7 +15,7 @@ import {
   circularAt,
   monotoneCubicAt,
 } from '@/lib/timeline/interpolate';
-import { detectWindows } from '@/lib/timeline/windows';
+import { detectDailyWindows, detectWindows } from '@/lib/timeline/windows';
 import { computeScore, gradeFor } from '@/lib/scoring/engine';
 import { degreesToCompass, type MarineConditions } from '@/types/marine';
 
@@ -182,6 +182,7 @@ export function buildTimeline(
     date,
     points,
     windows: detectWindows(points),
+    dailyWindows: detectDailyWindows(points),
     generatedAt: now.toISOString(),
   };
 }

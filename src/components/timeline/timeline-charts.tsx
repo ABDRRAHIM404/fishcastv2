@@ -13,6 +13,7 @@ import {
 } from 'recharts';
 import type { FishingWindow, TimelinePoint } from '@/lib/timeline/types';
 import { WINDOW_FILL } from '@/components/timeline/window-colors';
+import { parseIsoLocalDate } from '@/lib/timeline/format';
 
 interface ChartDatum {
   ms: number;
@@ -39,6 +40,23 @@ function toData(points: TimelinePoint[]): ChartDatum[] {
       score: p.score,
     };
   });
+}
+
+function dayBoundaries(points: TimelinePoint[]): number[] {
+  if (points.length === 0) return [];
+  const start = new Date(points[0]!.time).getTime();
+  const boundaries: number[] = [];
+  let lastDay = parseIsoLocalDate(points[0]!.time);
+
+  for (const point of points) {
+    const currentDay = parseIsoLocalDate(point.time);
+    if (currentDay !== lastDay) {
+      boundaries.push((new Date(point.time).getTime() - start) / 3600_000);
+      lastDay = currentDay;
+    }
+  }
+
+  return boundaries;
 }
 
 const hourTicks = [0, 6, 12, 18, 24, 30, 36, 42, 48];
@@ -119,14 +137,16 @@ export function TimelineCharts({
     <ReferenceLine x={activeHour} stroke="hsl(var(--primary))" strokeWidth={1.5} />
   );
 
-  const separator = (
+  const boundaries = dayBoundaries(points);
+  const separators = boundaries.map((offset, i) => (
     <ReferenceLine
-      x={24}
+      key={i}
+      x={offset}
       stroke="hsl(var(--border))"
       strokeDasharray="4 4"
       opacity={0.6}
     />
-  );
+  ));
 
   return (
     <div className="grid gap-3 sm:grid-cols-2">
@@ -140,7 +160,7 @@ export function TimelineCharts({
           </defs>
           <WindowAreas windows={windows} points={points} />
           <XAxis {...axisProps} />
-          {separator}
+          {separators}
           <YAxis
             tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
             stroke="hsl(var(--border))"
@@ -163,7 +183,7 @@ export function TimelineCharts({
         <LineChart data={data} margin={{ top: 4, right: 8, bottom: 0, left: -20 }}>
           <WindowAreas windows={windows} points={points} />
           <XAxis {...axisProps} />
-          {separator}
+          {separators}
           <YAxis
             domain={[0, 10]}
             tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
@@ -186,7 +206,7 @@ export function TimelineCharts({
         <LineChart data={data} margin={{ top: 4, right: 8, bottom: 0, left: -20 }}>
           <WindowAreas windows={windows} points={points} />
           <XAxis {...axisProps} />
-          {separator}
+          {separators}
           <YAxis
             tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
             stroke="hsl(var(--border))"
@@ -209,7 +229,7 @@ export function TimelineCharts({
         <LineChart data={data} margin={{ top: 4, right: 8, bottom: 0, left: -20 }}>
           <WindowAreas windows={windows} points={points} />
           <XAxis {...axisProps} />
-          {separator}
+          {separators}
           <YAxis
             tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
             stroke="hsl(var(--border))"
