@@ -69,4 +69,36 @@ describe('detectWindows', () => {
     expect(w[0]!.peakTime).toBe('2026-06-14T00:05:00.000Z');
     expect(w[0]!.peakScore).toBe(7.5);
   });
+
+  it('limits long uniform high-score segments to four windows', () => {
+    const points: TimelinePoint[] = Array.from({ length: 288 }, (_, index) => {
+      const totalMinutes = index * 5;
+      const hour = String(Math.floor(totalMinutes / 60)).padStart(2, '0');
+      const minute = String(totalMinutes % 60).padStart(2, '0');
+      return pt(`2026-06-14T${hour}:${minute}:00.000Z`, 9);
+    });
+
+    const windows = detectWindows(points);
+    expect(windows).toHaveLength(4);
+    for (let i = 0; i < windows.length; i++) {
+      expect(windows[i]!.peakTime >= windows[i]!.start).toBe(true);
+      expect(windows[i]!.peakTime <= windows[i]!.end).toBe(true);
+      if (i > 0) {
+        expect(windows[i]!.start > windows[i - 1]!.end).toBe(true);
+      }
+    }
+  });
+
+  it('caps daily windows to four even when every point is excellent', () => {
+    const points: TimelinePoint[] = Array.from({ length: 288 }, (_, index) => {
+      const totalMinutes = index * 5;
+      const hour = String(Math.floor(totalMinutes / 60)).padStart(2, '0');
+      const minute = String(totalMinutes % 60).padStart(2, '0');
+      return pt(`2026-06-14T${hour}:${minute}:00.000Z`, 9);
+    });
+
+    const dayPoints = points;
+    const windows = detectWindows(dayPoints);
+    expect(windows).toHaveLength(4);
+  });
 });
