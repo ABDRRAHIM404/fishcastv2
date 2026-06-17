@@ -58,9 +58,9 @@ export function TimelineScrubber({
       </div>
 
       <div className="flex justify-between text-caption text-muted-foreground">
-        <span>00:00</span>
-        <span>12:00</span>
-        <span>23:55</span>
+        <span>Now</span>
+        <span>+24h</span>
+        <span>+48h</span>
       </div>
     </div>
   );

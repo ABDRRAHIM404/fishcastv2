@@ -4,6 +4,8 @@ import { Badge } from '@/components/ui/badge';
 import { WINDOW_BADGE } from '@/components/timeline/window-colors';
 import type { FishingWindow } from '@/lib/timeline/types';
 
+import { formatWindowLabel } from '@/lib/timeline/format';
+
 function time(iso: string): string {
   return new Date(iso).toLocaleTimeString([], {
     hour: '2-digit',
@@ -31,12 +33,12 @@ export function BestWindows({ windows }: { windows: FishingWindow[] }) {
       {ranked.map((w, i) => (
         <li
           key={`${w.start}-${i}`}
-          className="flex items-center justify-between gap-3 rounded-lg border border-border/60 px-4 py-3"
+          className="flex flex-col gap-3 rounded-lg border border-border/60 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
         >
-          <div className="flex items-center gap-3">
+          <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-3">
             <Badge variant={WINDOW_BADGE[w.label]}>{w.label}</Badge>
-            <span className="tabular-nums">
-              {time(w.start)} {'–'} {time(w.end)}
+            <span className="tabular-nums font-medium">
+              {formatWindowLabel(w.start, w.end)}
             </span>
           </div>
           <span className="text-sm text-muted-foreground">

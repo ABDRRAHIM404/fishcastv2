@@ -36,7 +36,7 @@ export interface Timeline {
   spotId: string;
   /** Local day, YYYY-MM-DD. */
   date: string;
-  /** 5-minute increments spanning the local day (up to 288 points). */
+  /** 5-minute increments spanning the rolling 48-hour window (576 points). */
   points: TimelinePoint[];
   /** Ranked best fishing windows. */
   windows: FishingWindow[];

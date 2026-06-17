@@ -122,11 +122,13 @@ export async function getTimelineForSpot(
     tide: tide.status === 'fulfilled' ? tide.value : [],
   };
 
+  const now = new Date();
   const timeline = buildTimeline(
     spot.id,
     date,
-    dayStartMs(date),
-    anchors
+    now.getTime(),
+    anchors,
+    now
   );
   await writeCache(spot.id, date, timeline);
   return timeline;

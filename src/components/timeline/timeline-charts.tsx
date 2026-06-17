@@ -24,11 +24,15 @@ interface ChartDatum {
 }
 
 function toData(points: TimelinePoint[]): ChartDatum[] {
+  const now = points.length > 0 ? new Date(points[0]!.time) : new Date();
+
   return points.map((p) => {
     const d = new Date(p.time);
+    const offsetHours = (d.getTime() - now.getTime()) / 3600_000;
+
     return {
       ms: d.getTime(),
-      hour: d.getHours() + d.getMinutes() / 60,
+      hour: offsetHours,
       tide: p.tideHeightM,
       wind: p.windSpeedKmh,
       wave: p.waveHeightM,
@@ -37,11 +41,13 @@ function toData(points: TimelinePoint[]): ChartDatum[] {
   });
 }
 
-const hourTicks = [0, 6, 12, 18, 24];
+const hourTicks = [0, 6, 12, 18, 24, 30, 36, 42, 48];
 const fmtHour = (h: number) => `${String(Math.round(h)).padStart(2, '0')}h`;
 
 /** Window highlight overlays shared by every chart. */
-function WindowAreas({ windows }: { windows: FishingWindow[] }) {
+function WindowAreas({ windows, points }: { windows: FishingWindow[]; points: TimelinePoint[] }) {
+  const now = points.length > 0 ? new Date(points[0]!.time) : new Date();
+
   return (
     <>
       {windows
@@ -49,11 +55,13 @@ function WindowAreas({ windows }: { windows: FishingWindow[] }) {
         .map((w, i) => {
           const start = new Date(w.start);
           const end = new Date(w.end);
+          const startOffset = (start.getTime() - now.getTime()) / 3600_000;
+          const endOffset = (end.getTime() - now.getTime()) / 3600_000;
           return (
             <ReferenceArea
               key={`${w.start}-${i}`}
-              x1={start.getHours() + start.getMinutes() / 60}
-              x2={end.getHours() + end.getMinutes() / 60}
+              x1={startOffset}
+              x2={endOffset}
               fill={WINDOW_FILL[w.label]}
               stroke="none"
             />
@@ -84,7 +92,7 @@ function ChartFrame({
 
 const axisProps = {
   type: 'number' as const,
-  domain: [0, 24] as [number, number],
+  domain: [0, 48] as [number, number],
   ticks: hourTicks,
   tickFormatter: fmtHour,
   dataKey: 'hour',
@@ -111,6 +119,15 @@ export function TimelineCharts({
     <ReferenceLine x={activeHour} stroke="hsl(var(--primary))" strokeWidth={1.5} />
   );
 
+  const separator = (
+    <ReferenceLine
+      x={24}
+      stroke="hsl(var(--border))"
+      strokeDasharray="4 4"
+      opacity={0.6}
+    />
+  );
+
   return (
     <div className="grid gap-3 sm:grid-cols-2">
       <ChartFrame title="Tide (m)">
@@ -121,8 +138,9 @@ export function TimelineCharts({
               <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0} />
             </linearGradient>
           </defs>
-          <WindowAreas windows={windows} />
+          <WindowAreas windows={windows} points={points} />
           <XAxis {...axisProps} />
+          {separator}
           <YAxis
             tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
             stroke="hsl(var(--border))"
@@ -143,8 +161,9 @@ export function TimelineCharts({
 
       <ChartFrame title="Fishing score (0-10)">
         <LineChart data={data} margin={{ top: 4, right: 8, bottom: 0, left: -20 }}>
-          <WindowAreas windows={windows} />
+          <WindowAreas windows={windows} points={points} />
           <XAxis {...axisProps} />
+          {separator}
           <YAxis
             domain={[0, 10]}
             tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
@@ -165,8 +184,9 @@ export function TimelineCharts({
 
       <ChartFrame title="Wind (km/h)">
         <LineChart data={data} margin={{ top: 4, right: 8, bottom: 0, left: -20 }}>
-          <WindowAreas windows={windows} />
+          <WindowAreas windows={windows} points={points} />
           <XAxis {...axisProps} />
+          {separator}
           <YAxis
             tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
             stroke="hsl(var(--border))"
@@ -187,8 +207,9 @@ export function TimelineCharts({
 
       <ChartFrame title="Wave height (m)">
         <LineChart data={data} margin={{ top: 4, right: 8, bottom: 0, left: -20 }}>
-          <WindowAreas windows={windows} />
+          <WindowAreas windows={windows} points={points} />
           <XAxis {...axisProps} />
+          {separator}
           <YAxis
             tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
             stroke="hsl(var(--border))"

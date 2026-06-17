@@ -9,6 +9,7 @@ import { TimelineReadout } from '@/components/timeline/timeline-readout';
 import { TimelineCharts } from '@/components/timeline/timeline-charts';
 import { BestWindows } from '@/components/timeline/best-windows';
 import { useTimeline } from '@/hooks/use-timeline';
+import { formatTimelineRange, formatScrubberLabel } from '@/lib/timeline/format';
 
 function nearestNowIndex(times: string[]): number {
   const now = Date.now();
@@ -45,6 +46,10 @@ export function MarineTimelineSection({ spotId }: { spotId: string }) {
   );
   const activeIndex = index ?? defaultIndex;
   const activePoint = points[activeIndex] ?? points[0] ?? null;
+  const rangeLabel = useMemo(() => {
+    if (points.length < 1) return null;
+    return formatTimelineRange(points[0]!.time, points[points.length - 1]!.time);
+  }, [points]);
 
   return (
     <PremiumCard className="p-6">
@@ -53,7 +58,7 @@ export function MarineTimelineSection({ spotId }: { spotId: string }) {
         <h2 className="font-display text-h3">Marine timeline</h2>
       </div>
       <p className="mt-1 text-sm text-muted-foreground">
-        Scrub through the day to see when conditions are best.
+        {rangeLabel ?? 'Loading timeline range...'}
       </p>
 
       {state.status === 'loading' ? (
@@ -80,10 +85,7 @@ export function MarineTimelineSection({ spotId }: { spotId: string }) {
             count={points.length}
             index={activeIndex}
             onIndexChange={setIndex}
-            timeLabel={new Date(activePoint.time).toLocaleTimeString([], {
-              hour: '2-digit',
-              minute: '2-digit',
-            })}
+            timeLabel={formatScrubberLabel(activePoint.time)}
           />
 
           <TimelineReadout point={activePoint} />
@@ -92,8 +94,9 @@ export function MarineTimelineSection({ spotId }: { spotId: string }) {
             points={points}
             windows={state.data.windows}
             activeHour={
-              new Date(activePoint.time).getHours() +
-              new Date(activePoint.time).getMinutes() / 60
+              (new Date(activePoint.time).getTime() -
+                new Date(points[0]!.time).getTime()) /
+              3600_000
             }
           />
 

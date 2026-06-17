@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildTimeline, dayMarks, STEPS_PER_DAY } from '@/lib/timeline/build';
+import { buildTimeline, windowMarks, STEPS_PER_WINDOW } from '@/lib/timeline/build';
 import type { ForecastAnchors } from '@/lib/timeline/types';
 
 const date = '2026-06-14';
@@ -34,16 +34,16 @@ function flatAnchors(): ForecastAnchors {
   };
 }
 
-describe('dayMarks', () => {
-  it('produces 288 five-minute marks', () => {
-    expect(dayMarks(dayStart)).toHaveLength(STEPS_PER_DAY);
+describe('windowMarks', () => {
+  it('produces 576 five-minute marks', () => {
+    expect(windowMarks(dayStart)).toHaveLength(STEPS_PER_WINDOW);
   });
 });
 
 describe('buildTimeline', () => {
-  it('builds 288 points with scores and windows', () => {
+  it('builds 576 points with scores and windows', () => {
     const tl = buildTimeline('spot-1', date, dayStart, flatAnchors(), NOW);
-    expect(tl.points).toHaveLength(STEPS_PER_DAY);
+    expect(tl.points).toHaveLength(STEPS_PER_WINDOW);
     expect(tl.windows.length).toBeGreaterThan(0);
     expect(tl.date).toBe(date);
   });

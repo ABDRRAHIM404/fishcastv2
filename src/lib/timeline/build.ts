@@ -20,12 +20,12 @@ import { computeScore, gradeFor } from '@/lib/scoring/engine';
 import { degreesToCompass, type MarineConditions } from '@/types/marine';
 
 export const STEP_MS = 5 * 60 * 1000;
-export const STEPS_PER_DAY = 288;
+export const STEPS_PER_WINDOW = 576;
 
-/** Builds the list of 5-minute epoch marks for a local day start (ms). */
-export function dayMarks(dayStartMs: number): number[] {
+/** Builds the list of 5-minute epoch marks for a rolling 48-hour window. */
+export function windowMarks(startMs: number): number[] {
   const marks: number[] = [];
-  for (let i = 0; i < STEPS_PER_DAY; i++) marks.push(dayStartMs + i * STEP_MS);
+  for (let i = 0; i < STEPS_PER_WINDOW; i++) marks.push(startMs + i * STEP_MS);
   return marks;
 }
 
@@ -118,7 +118,7 @@ function synthMarine(
 export function buildTimeline(
   spotId: string,
   date: string,
-  dayStartMs: number,
+  startMs: number,
   anchors: ForecastAnchors,
   now: Date = new Date()
 ): Timeline {
@@ -135,7 +135,7 @@ export function buildTimeline(
     anchors.tide.map((p) => p.heightM)
   );
 
-  const marks = dayMarks(dayStartMs);
+  const marks = windowMarks(startMs);
 
   const points: TimelinePoint[] = marks.map((ms, i) => {
     const iso = new Date(ms).toISOString();
