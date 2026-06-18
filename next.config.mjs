@@ -12,6 +12,7 @@ const nextConfig = {
       { protocol: 'https', hostname: 'ak-d.tripcdn.com' },
       { protocol: 'https', hostname: 'www.marokko-reiseblog.com' },
       { protocol: 'https', hostname: 'explore-agadirsoussmassa.com' },
+      { protocol: 'https', hostname: 'blogger.googleusercontent.com' },
     ],
   },
 };
