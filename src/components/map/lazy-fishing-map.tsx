@@ -6,15 +6,12 @@ import { cn } from '@/lib/utils';
 import type { Spot } from '@/types/spot';
 
 /**
- * Lazy wrapper for the interactive Mapbox map. mapbox-gl is large (~480kB),
- * so we defer loading the map component (and the library) until the /map page
- * renders on the client, keeping it out of the initial bundle. ssr:false is
- * required because Mapbox needs the DOM/window.
+ * Lazy wrapper for the interactive Leaflet map. Leaflet depends on the DOM/window,
+ * so we defer loading the map component until the /map page renders on the client.
+ * ssr:false avoids server-side rendering issues.
  *
  * The placeholder matches the map container box (h-[60vh] / min-h-[420px],
- * rounded-2xl) so there is no layout shift when the map mounts. The map's
- * own implementation — including the v2 callback API and global CSS — is not
- * modified here.
+ * rounded-2xl) so there is no layout shift when the map mounts.
  */
 const FishingMap = dynamic(
   () => import('@/components/map/fishing-map').then((m) => m.FishingMap),

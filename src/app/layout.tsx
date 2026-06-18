@@ -2,7 +2,6 @@ import type { Metadata, Viewport } from 'next';
 import { Inter, Sora } from 'next/font/google';
 import { siteConfig } from '@/config/site';
 import '@/app/globals.css';
-import 'mapbox-gl/dist/mapbox-gl.css';
 
 const fontSans = Inter({
   subsets: ['latin'],

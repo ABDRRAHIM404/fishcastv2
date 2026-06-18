@@ -41,7 +41,7 @@ fishcastv2/
 │   │   └── globals.css
 │   ├── components/
 │   │   ├── ui/                      # Shadcn primitives
-│   │   ├── map/                     # Mapbox markers, clustering
+│   │   ├── map/                     # Leaflet markers, clustering
 │   │   ├── timeline/                # Scrubber, charts, window highlights
 │   │   ├── spot/                    # Cards, hero, conditions, difficulty badge
 │   │   ├── species/                 # Species cards, seasonality, filters
@@ -124,8 +124,8 @@ TanStack Query handles all client fetching, caching, and background revalidation
 - Protected actions and favorites scaffolding.
 - *Milestone:* user can sign in; full schema deployed.
 
-**Phase 3 — Mapbox & Spots**
-- Mapbox dark ocean style, custom markers, clustering, animations.
+**Phase 3 — Map & Spots**
+- Leaflet/OpenStreetMap dark ocean-style tiles, custom markers, clustering, animations.
 - Seed Chtouka Aït Baha / Souss-Massa spots only (Sidi R'bat, Tifnit, Douira, Massa, Sidi Boulfdail, Aglou) with `difficulty_level` set.
 - Show difficulty badge on map markers/popovers and spot cards.
 - *Milestone:* map renders real local spots with difficulty, mobile-friendly.

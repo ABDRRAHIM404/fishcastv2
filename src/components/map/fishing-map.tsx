@@ -1,243 +1,74 @@
-'use client';
+﻿'use client';
 
-import { useEffect, useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import mapboxgl from 'mapbox-gl';
-import 'mapbox-gl/dist/mapbox-gl.css';
+import { useEffect, useMemo, useState } from 'react';
+import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 import { Loader2, MapPinned } from 'lucide-react';
 import { MAP_CONFIG } from '@/config/map';
-import { SPOT_TYPE_LABELS, DIFFICULTY_LABELS, type Spot } from '@/types/spot';
+import { SPOT_TYPE_LABELS, type Spot } from '@/types/spot';
 import { cn } from '@/lib/utils';
-
-const TOKEN = process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN;
 
 interface FishingMapProps {
   spots: Spot[];
   className?: string;
 }
 
-function escapeHtml(value: string) {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
-function toFeatureCollection(spots: Spot[]): GeoJSON.FeatureCollection {
-  return {
-    type: 'FeatureCollection',
-    features: spots.map((spot) => ({
-      type: 'Feature',
-      geometry: {
-        type: 'Point',
-        coordinates: [spot.longitude, spot.latitude],
-      },
-      properties: {
-        slug: spot.slug,
-        name: spot.name,
-        spotType: SPOT_TYPE_LABELS[spot.spotType],
-        difficulty: DIFFICULTY_LABELS[spot.difficultyLevel],
-      },
-    })),
-  };
-}
-
-/**
- * Interactive Mapbox map for fishing spots.
- * - Dark ocean style, clustering, smooth fly-to, mobile-friendly controls.
- * - Clicking an unclustered marker navigates to the spot details page.
- */
-export function FishingMap({ spots, className }: FishingMapProps) {
-  const router = useRouter();
-  const containerRef = useRef<HTMLDivElement>(null);
-  const mapRef = useRef<mapboxgl.Map | null>(null);
-  const [status, setStatus] = useState<'loading' | 'ready' | 'error'>(
-    'loading'
-  );
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+function SpotBounds({ spots }: { spots: Spot[] }) {
+  const map = useMap();
 
   useEffect(() => {
-    if (!TOKEN) {
-      const message =
-        'Map unavailable: NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN is not set.';
-      console.error(message);
-      setErrorMessage(message);
-      setStatus('error');
-      return;
-    }
-    if (!containerRef.current || mapRef.current) return;
+    if (spots.length <= 1) return;
 
-    mapboxgl.accessToken = TOKEN;
+    const bounds = L.latLngBounds(
+      spots.map((spot) => [spot.latitude, spot.longitude] as [number, number])
+    );
 
-    let map: mapboxgl.Map;
-    try {
-      map = new mapboxgl.Map({
-        container: containerRef.current,
-        style: MAP_CONFIG.style,
-        center: MAP_CONFIG.center,
-        zoom: MAP_CONFIG.zoom,
-        minZoom: MAP_CONFIG.minZoom,
-        maxZoom: MAP_CONFIG.maxZoom,
-        attributionControl: false,
-      });
-    } catch (err) {
-      const errorText =
-        err instanceof Error ? err.message : 'Failed to initialize the map.';
-      console.error('FishingMap initialization error:', err);
-      setErrorMessage(errorText);
-      setStatus('error');
-      return;
-    }
-
-    mapRef.current = map;
-
-    map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), 'top-right');
-    map.addControl(new mapboxgl.AttributionControl({ compact: true }));
-
-    map.on('error', (e) => {
-      console.error('Mapbox error event:', e.error);
-      setErrorMessage(e.error?.message ?? 'Map failed to load.');
-      setStatus('error');
+    map.fitBounds(bounds, {
+      padding: [MAP_CONFIG.fitBoundsPadding, MAP_CONFIG.fitBoundsPadding],
+      maxZoom: 11,
+      animate: false,
     });
+  }, [map, spots]);
 
-    map.on('load', () => {
-      map.addSource('spots', {
-        type: 'geojson',
-        data: toFeatureCollection(spots),
-        cluster: true,
-        clusterMaxZoom: 13,
-        clusterRadius: 48,
-      });
+  return null;
+}
 
-      // Cluster circles.
-      map.addLayer({
-        id: 'clusters',
-        type: 'circle',
-        source: 'spots',
-        filter: ['has', 'point_count'],
-        paint: {
-          'circle-color': '#1ea7c5',
-          'circle-opacity': 0.85,
-          'circle-radius': ['step', ['get', 'point_count'], 16, 5, 22, 10, 28],
-          'circle-stroke-width': 2,
-          'circle-stroke-color': '#06121d',
-        },
-      });
+function configureLeafletIconDefaults() {
+  delete (L.Icon.Default.prototype as unknown as { _getIconUrl?: unknown })._getIconUrl;
 
-      map.addLayer({
-        id: 'cluster-count',
-        type: 'symbol',
-        source: 'spots',
-        filter: ['has', 'point_count'],
-        layout: {
-          'text-field': ['get', 'point_count_abbreviated'],
-          'text-size': 13,
-        },
-        paint: { 'text-color': '#06121d' },
-      });
+  L.Icon.Default.mergeOptions({
+    iconRetinaUrl: new URL('leaflet/dist/images/marker-icon-2x.png', import.meta.url).href,
+    iconUrl: new URL('leaflet/dist/images/marker-icon.png', import.meta.url).href,
+    shadowUrl: new URL('leaflet/dist/images/marker-shadow.png', import.meta.url).href,
+  });
+}
 
-      // Individual spot markers.
-      map.addLayer({
-        id: 'spot-markers',
-        type: 'circle',
-        source: 'spots',
-        filter: ['!', ['has', 'point_count']],
-        paint: {
-          'circle-color': '#39d4f0',
-          'circle-radius': 8,
-          'circle-stroke-width': 3,
-          'circle-stroke-color': '#06121d',
-        },
-      });
+export function FishingMap({ spots, className }: FishingMapProps) {
+  const [isReady, setIsReady] = useState(false);
 
-      // Fit to all spots if there is more than one.
-      if (spots.length > 1) {
-        const bounds = new mapboxgl.LngLatBounds();
-        spots.forEach((s) => bounds.extend([s.longitude, s.latitude]));
-        map.fitBounds(bounds, {
-          padding: MAP_CONFIG.fitBoundsPadding,
-          maxZoom: 11,
-          duration: 0,
-        });
-      }
-
-      // Force a resize after the map has been inserted and the page is visible.
-      // This avoids blank canvas rendering when map initialization happens
-      // before the client route/page transition has fully painted.
-      map.resize();
-
-      // Expand clusters on click (mapbox-gl v3 returns a Promise).
-      map.on('click', 'clusters', (e) => {
-        const features = map.queryRenderedFeatures(e.point, {
-          layers: ['clusters'],
-        });
-        const feature = features[0];
-        const clusterId = feature?.properties?.cluster_id;
-        const source = map.getSource('spots') as mapboxgl.GeoJSONSource;
-        if (clusterId == null || !source) return;
-
-        source.getClusterExpansionZoom(clusterId, (err, zoom) => {
-          if (err || zoom == null) return;
-          if (feature?.geometry.type === 'Point') {
-            map.easeTo({
-              center: feature.geometry.coordinates as [number, number],
-              zoom,
-            });
-          }
-        });
-      });
-
-      // Popup + navigation for individual markers.
-      const popup = new mapboxgl.Popup({
-        closeButton: false,
-        closeOnClick: false,
-        offset: 14,
-      });
-
-      map.on('mouseenter', 'spot-markers', (e) => {
-        map.getCanvas().style.cursor = 'pointer';
-        const feature = e.features?.[0];
-        if (!feature || feature.geometry.type !== 'Point') return;
-        const { name, spotType, difficulty } = feature.properties as Record<
-          string,
-          string
-        >;
-        const nameText = escapeHtml(String(name ?? ''));
-        const spotTypeText = escapeHtml(String(spotType ?? ''));
-        const difficultyText = escapeHtml(String(difficulty ?? ''));
-        popup
-          .setLngLat(feature.geometry.coordinates as [number, number])
-          .setHTML(
-            `<div style="font-family:inherit"><strong>${nameText}</strong><br/>` +
-              `<span style="opacity:.7">${spotTypeText} · ${difficultyText}</span></div>`
-          )
-          .addTo(map);
-      });
-
-      map.on('mouseleave', 'spot-markers', () => {
-        map.getCanvas().style.cursor = '';
-        popup.remove();
-      });
-
-      map.on('click', 'spot-markers', (e) => {
-        const slug = e.features?.[0]?.properties?.slug;
-        if (typeof slug === 'string') router.push(`/spots/${slug}`);
-      });
-
-      map.once('idle', () => {
-        setStatus('ready');
-      });
-    });
-
-    return () => {
-      map.remove();
-      mapRef.current = null;
-    };
-    // spots are server-provided and stable per render; re-init only on mount.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    configureLeafletIconDefaults();
+    setIsReady(true);
   }, []);
+
+  const markers = useMemo(
+    () =>
+      spots.map((spot) => (
+        <Marker key={spot.id} position={[spot.latitude, spot.longitude]}>
+          <Popup>
+            <div className="space-y-1 text-sm">
+              <p className="font-semibold">{spot.name}</p>
+              <p className="text-muted-foreground">{SPOT_TYPE_LABELS[spot.spotType]}</p>
+              <a className="text-primary underline" href={`/spots/${spot.slug}`}>
+                View spot
+              </a>
+            </div>
+          </Popup>
+        </Marker>
+      )),
+    [spots]
+  );
 
   return (
     <div
@@ -246,20 +77,34 @@ export function FishingMap({ spots, className }: FishingMapProps) {
         className
       )}
     >
-      <div ref={containerRef} className="absolute inset-0" />
+      <MapContainer
+        center={MAP_CONFIG.center}
+        zoom={MAP_CONFIG.zoom}
+        minZoom={MAP_CONFIG.minZoom}
+        maxZoom={MAP_CONFIG.maxZoom}
+        scrollWheelZoom
+        className="h-full w-full"
+      >
+        <TileLayer
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        />
+        {spots.length > 1 ? <SpotBounds spots={spots} /> : null}
+        {markers}
+      </MapContainer>
 
-      {status === 'loading' ? (
+      {!isReady ? (
         <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-background/80 backdrop-blur-sm">
           <Loader2 className="size-6 animate-spin text-primary" />
           <p className="text-sm text-muted-foreground">Loading map…</p>
         </div>
       ) : null}
 
-      {status === 'error' ? (
+      {isReady && spots.length === 0 ? (
         <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-background/90 p-6 text-center">
           <MapPinned className="size-6 text-muted-foreground" />
           <p className="max-w-sm text-sm text-muted-foreground">
-            {errorMessage ?? 'The map could not be loaded.'}
+            No spots are available to display on the map.
           </p>
         </div>
       ) : null}

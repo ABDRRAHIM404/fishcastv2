@@ -20,7 +20,7 @@ This is a real product, not a demo, portfolio project, or school project.
 * Framer Motion
 * Shadcn UI
 * Supabase
-* Mapbox
+* Leaflet + OpenStreetMap
 * Gemini API
 * TanStack Query
 
@@ -112,7 +112,7 @@ The app should feel like a premium consumer product.
 
 ### Interactive Map
 
-Use Mapbox.
+Use Leaflet with OpenStreetMap tiles.
 
 Requirements:
 
@@ -287,7 +287,7 @@ Phase 2
 
 Phase 3
 
-* Mapbox integration
+* Leaflet/OpenStreetMap integration
 * Fishing spots
 * Local seed data
 
@@ -326,7 +326,7 @@ Instead ask:
 
 * Build authentication.
 * Build Supabase schema.
-* Build Mapbox integration.
+* Build Leaflet/OpenStreetMap integration.
 * Build weather services.
 * Build marine timeline.
 * Build scoring engine.
