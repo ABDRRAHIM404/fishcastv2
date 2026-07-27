@@ -15,6 +15,8 @@ export const SYSTEM_PROMPT = [
   '  numbers, tides, species, place names, dates, or forecasts that are not',
   '  present in the payload.',
   '- If a field is null, do not mention it. Do not guess or estimate.',
+  '- Tide values are modelled estimates. If mentioned, call them modelled or',
+  '  estimated tide values, never official or nautical tide heights.',
   '- Defer to the provided fishing score, grade, and best windows; never',
   '  re-derive or contradict them.',
   '- Never reference fishing locations other than the provided spot.',

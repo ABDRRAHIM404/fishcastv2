@@ -13,7 +13,7 @@ const MIDDAY = new Date('2026-06-14T13:00:00');
 function marine(overrides?: {
   windKmh?: number | null;
   waveM?: number | null;
-  trend?: 'rising' | 'falling' | null;
+  trend?: 'rising' | 'falling' | 'slack' | null;
   nextExtreme?: 'high' | 'low' | null;
   windOk?: boolean;
   wavesOk?: boolean;
@@ -62,11 +62,16 @@ function marine(overrides?: {
             cachedAt: ISO,
             data: {
               observedAt: ISO,
+              source: 'open-meteo-modelled',
+              datum: 'mean-sea-level',
+              sourceIntervalMinutes: 60,
               heightM: 1.2,
               trend: o.trend ?? 'rising',
               extremes: o.nextExtreme
                 ? [{ time: ISO, state: o.nextExtreme, heightM: 1.8 }]
                 : [],
+              minutesToNextExtreme: o.nextExtreme ? 0 : null,
+              dailyRangeM: 1.2,
             },
           },
   };
@@ -110,7 +115,7 @@ describe('evaluateSuitability', () => {
       DAWN
     );
     expect(res.favored).toBe(true);
-    expect(res.reason).toContain('rising tide');
+    expect(res.reason).toContain('modelled rising tide');
   });
 
   it('not favored when one constraint fails (wind too high)', () => {

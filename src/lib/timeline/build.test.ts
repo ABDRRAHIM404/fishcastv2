@@ -28,10 +28,14 @@ function flatAnchors(): ForecastAnchors {
       cloudCoverPct: Array(n).fill(60),
       pressureMb: Array(n).fill(1018),
     },
-    tide: time.map((t, i) => ({
-      time: t,
-      heightM: 1 + Math.sin((i / 24) * Math.PI * 2),
-    })),
+    tide: {
+      source: 'open-meteo-hourly',
+      intervalMinutes: 60,
+      points: time.map((t, i) => ({
+        time: t,
+        heightM: 1 + Math.sin((i / 24) * Math.PI * 2),
+      })),
+    },
   };
 }
 
@@ -47,6 +51,13 @@ describe('buildTimeline', () => {
     expect(tl.points).toHaveLength(STEPS_PER_WINDOW);
     expect(tl.windows.length).toBeGreaterThan(0);
     expect(tl.date).toBe(date);
+    expect(tl.tideMetadata).toEqual({
+      source: 'open-meteo-modelled',
+      datum: 'mean-sea-level',
+      providerIntervalMinutes: 60,
+      timelineIntervalMinutes: 5,
+      interpolation: 'monotone-cubic',
+    });
   });
 
   it('is deterministic for identical anchors', () => {
@@ -67,7 +78,11 @@ describe('buildTimeline', () => {
       wind: { time: [], speedKmh: [], directionDeg: [] },
       waves: { time: [], heightM: [] },
       weather: { time: [], precipitationMm: [], cloudCoverPct: [], pressureMb: [] },
-      tide: [],
+      tide: {
+        source: 'open-meteo-hourly',
+        intervalMinutes: 60,
+        points: [],
+      },
     };
     const tl = buildTimeline('spot-1', date, dayStart, empty, NOW);
     expect(tl.points.every((p) => p.score === 0)).toBe(true);
@@ -81,10 +96,27 @@ describe('buildTimeline', () => {
       wind: { time: t, speedKmh: [10], directionDeg: [180] },
       waves: { time: t, heightM: [0.5] },
       weather: { time: t, precipitationMm: [0], cloudCoverPct: [50], pressureMb: [1018] },
-      tide: [{ time: t[0]!, heightM: 1.5 }],
+      tide: {
+        source: 'open-meteo-hourly',
+        intervalMinutes: 60,
+        points: [{ time: t[0]!, heightM: 1.5 }],
+      },
     };
     const tl = buildTimeline('spot-1', date, dayStart, single, NOW);
     expect(tl.points.every((p) => p.windSpeedKmh === 10)).toBe(true);
     expect(tl.points.every((p) => p.waveHeightM === 0.5)).toBe(true);
+    expect(tl.points.every((p) => p.tideHeightM === 1.5)).toBe(true);
+  });
+
+  it('uses smooth tide interpolation between hourly provider points', () => {
+    const tl = buildTimeline('spot-1', date, dayStart, flatAnchors(), NOW);
+    const halfHour = tl.points.find(
+      (point) => point.time === '2026-06-14T00:30:00.000Z'
+    );
+    expect(halfHour?.tideHeightM).not.toBeNull();
+    expect(halfHour!.tideHeightM!).toBeGreaterThan(1);
+    expect(halfHour!.tideHeightM!).toBeLessThan(
+      1 + Math.sin(Math.PI / 12)
+    );
   });
 });

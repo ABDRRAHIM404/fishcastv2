@@ -42,6 +42,7 @@ function conditionsFrom(marine: MarineConditions): AiContextConditions {
   return {
     tideState: tide?.trend ?? null,
     tideHeightM: tide?.heightM ?? null,
+    tideSource: tide ? 'modelled' : null,
     windSpeedKmh: wind?.speedKmh ?? null,
     windDirection: wind?.directionCompass ?? null,
     waveHeightM: waves?.waveHeightM ?? null,

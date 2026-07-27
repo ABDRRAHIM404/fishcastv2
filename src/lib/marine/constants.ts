@@ -15,10 +15,8 @@ export const TTL_MS: Record<MarineKind, number> = {
 export const PROVIDERS = {
   openMeteoForecast: 'open-meteo-forecast',
   openMeteoMarine: 'open-meteo-marine',
-  worldTides: 'worldtides',
 } as const;
 
 export const OPEN_METEO_FORECAST_URL = 'https://api.open-meteo.com/v1/forecast';
 export const OPEN_METEO_MARINE_URL =
   'https://marine-api.open-meteo.com/v1/marine';
-export const WORLDTIDES_URL = 'https://www.worldtides.info/api/v3';

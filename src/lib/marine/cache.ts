@@ -12,6 +12,7 @@ export interface CacheEntry<T> {
 
 type MarineCacheRow = {
   normalized: unknown;
+  provider: string;
   fetched_at: string;
   expires_at: string;
 };
@@ -22,18 +23,20 @@ type MarineCacheRow = {
  */
 export async function readCache<T>(
   spotId: string,
-  kind: MarineKind
+  kind: MarineKind,
+  expectedProvider?: string
 ): Promise<CacheEntry<T> | null> {
   const supabase = await createClient();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data, error } = await (supabase as any)
     .from('marine_cache')
-    .select('normalized, fetched_at, expires_at')
+    .select('normalized, provider, fetched_at, expires_at')
     .eq('spot_id', spotId)
     .eq('kind', kind)
     .maybeSingle() as { data: MarineCacheRow | null; error: unknown };
 
   if (error || !data) return null;
+  if (expectedProvider && data.provider !== expectedProvider) return null;
   if (new Date(data.expires_at).getTime() <= Date.now()) return null;
 
   return { data: data.normalized as T, cachedAt: data.fetched_at };
@@ -84,7 +87,7 @@ export async function withCache<T>(
   provider: string,
   load: () => Promise<{ normalized: T; raw?: unknown }>
 ): Promise<CacheEntry<T>> {
-  const cached = await readCache<T>(spotId, kind);
+  const cached = await readCache<T>(spotId, kind, provider);
   if (cached) return cached;
 
   const { normalized, raw } = await load();

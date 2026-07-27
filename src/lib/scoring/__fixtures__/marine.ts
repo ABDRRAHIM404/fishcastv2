@@ -55,9 +55,14 @@ export function excellentMarine(): MarineConditions {
       cachedAt: ISO,
       data: {
         observedAt: ISO,
+        source: 'open-meteo-modelled',
+        datum: 'mean-sea-level',
+        sourceIntervalMinutes: 60,
         heightM: 1.2,
         trend: 'rising',
         extremes: [{ time: ISO, state: 'high', heightM: 1.8 }],
+        minutesToNextExtreme: 0,
+        dailyRangeM: 1.4,
       },
     },
   };
@@ -111,15 +116,20 @@ export function poorMarine(): MarineConditions {
       cachedAt: ISO,
       data: {
         observedAt: ISO,
+        source: 'open-meteo-modelled',
+        datum: 'mean-sea-level',
+        sourceIntervalMinutes: 60,
         heightM: 0.9,
-        trend: null,
+        trend: 'slack',
         extremes: [],
+        minutesToNextExtreme: null,
+        dailyRangeM: 1.1,
       },
     },
   };
 }
 
-/** All sections failed (e.g. providers down / missing tide key). */
+/** All sections failed (for example, providers are unavailable). */
 export function emptyMarine(): MarineConditions {
   return {
     spotId: 'spot-1',

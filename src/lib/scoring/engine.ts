@@ -27,7 +27,7 @@ const FACTOR_LABELS: Record<FactorKey, string> = {
   wave: 'Wave height',
   swell: 'Swell',
   weather: 'Weather',
-  tide: 'Tide',
+  tide: 'Modelled tide',
   pressure: 'Pressure',
   moon: 'Moon phase',
   timeOfDay: 'Time of day',

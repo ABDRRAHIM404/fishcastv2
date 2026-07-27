@@ -150,7 +150,7 @@ export function TimelineCharts({
 
   return (
     <div className="grid gap-3 sm:grid-cols-2">
-      <ChartFrame title="Tide (m)">
+      <ChartFrame title="Modelled tide (m)">
         <AreaChart data={data} margin={{ top: 4, right: 8, bottom: 0, left: -20 }}>
           <defs>
             <linearGradient id="tideFill" x1="0" y1="0" x2="0" y2="1">

@@ -1,3 +1,5 @@
+import type { ModelledSeaLevelPoint } from '@/types/marine';
+
 /**
  * Timeline domain types. The interpolation + window engine is pure: it maps
  * forecast anchor series to a deterministic 5-minute timeline and ranked best
@@ -51,9 +53,17 @@ export interface Timeline {
   dailyWindows: DailyFishingWindows[];
   /** ISO timestamp the timeline was computed. */
   generatedAt: string;
+  /** Makes provider source points and timeline interpolation explicit. */
+  tideMetadata: {
+    source: 'open-meteo-modelled';
+    datum: 'mean-sea-level';
+    providerIntervalMinutes: 60;
+    timelineIntervalMinutes: 5;
+    interpolation: 'monotone-cubic';
+  };
 }
 
-/** Anchor forecast series the engine interpolates from (provider-agnostic). */
+/** Source forecast series the engine interpolates into domain timeline data. */
 export interface ForecastAnchors {
   /** Hourly anchors: ISO time + values aligned by index. */
   wind: { time: string[]; speedKmh: (number | null)[]; directionDeg: (number | null)[] };
@@ -64,6 +74,10 @@ export interface ForecastAnchors {
     cloudCoverPct: (number | null)[];
     pressureMb: (number | null)[];
   };
-  /** Sub-hourly tide height anchors. */
-  tide: { time: string; heightM: number }[];
+  tide: {
+    source: 'open-meteo-hourly';
+    intervalMinutes: 60;
+    /** Native provider points; buildTimeline derives five-minute estimates. */
+    points: ModelledSeaLevelPoint[];
+  };
 }

@@ -18,6 +18,7 @@ import {
 import { detectDailyWindows, detectWindows } from '@/lib/timeline/windows';
 import { computeScore, gradeFor } from '@/lib/scoring/engine';
 import { degreesToCompass, type MarineConditions } from '@/types/marine';
+import { modelledTideTrendAt } from '@/lib/tides/derive';
 
 export const STEP_MS = 5 * 60 * 1000;
 export const STEPS_PER_WINDOW = 576;
@@ -46,7 +47,7 @@ function synthMarine(
     pressureMb: number | null;
     pressureTrendMbPerHr: number | null;
     tideHeightM: number | null;
-    tideRising: 'rising' | 'falling' | null;
+    tideRising: 'rising' | 'falling' | 'slack' | null;
   }
 ): MarineConditions {
   return {
@@ -110,9 +111,14 @@ function synthMarine(
             cachedAt: iso,
             data: {
               observedAt: iso,
+              source: 'open-meteo-modelled',
+              datum: 'mean-sea-level',
+              sourceIntervalMinutes: 60,
               heightM: v.tideHeightM,
               trend: v.tideRising,
               extremes: [],
+              minutesToNextExtreme: null,
+              dailyRangeM: null,
             },
           },
   };
@@ -138,8 +144,8 @@ export function buildTimeline(
   const cloud = toSamples(anchors.weather.time, anchors.weather.cloudCoverPct);
   const pressure = toSamples(anchors.weather.time, anchors.weather.pressureMb);
   const tide = toSamples(
-    anchors.tide.map((p) => p.time),
-    anchors.tide.map((p) => p.heightM)
+    anchors.tide.points.map((point) => point.time),
+    anchors.tide.points.map((point) => point.heightM)
   );
 
   const marks = windowMarks(startMs);
@@ -147,16 +153,10 @@ export function buildTimeline(
   const points: TimelinePoint[] = marks.map((ms, i) => {
     const iso = new Date(ms).toISOString();
     const tideHeightM = monotoneCubicAt(tide, ms);
-    const prevTide =
-      i > 0 ? monotoneCubicAt(tide, marks[i - 1]!) : null;
     const tideRising =
-      tideHeightM === null || prevTide === null
+      tideHeightM === null
         ? null
-        : tideHeightM > prevTide
-          ? 'rising'
-          : tideHeightM < prevTide
-            ? 'falling'
-            : null;
+        : modelledTideTrendAt(anchors.tide.points, ms);
 
     const windSpeedKmh = linearAt(windSpeed, ms);
     const windDirectionDeg = circularAt(windDir, ms);
@@ -200,5 +200,12 @@ export function buildTimeline(
     windows: detectWindows(points),
     dailyWindows: detectDailyWindows(points),
     generatedAt: now.toISOString(),
+    tideMetadata: {
+      source: 'open-meteo-modelled',
+      datum: 'mean-sea-level',
+      providerIntervalMinutes: 60,
+      timelineIntervalMinutes: 5,
+      interpolation: 'monotone-cubic',
+    },
   };
 }

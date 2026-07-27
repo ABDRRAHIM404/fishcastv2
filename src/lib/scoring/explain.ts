@@ -52,11 +52,11 @@ export function explainFactor(
         : `Precipitation ${p.toFixed(1)} mm — ${b}.`;
     }
     case 'tide': {
-      if (marine.tide.status !== 'ok') return `Tide: ${b}.`;
+      if (marine.tide.status !== 'ok') return `Modelled tide: ${b}.`;
       const trend = marine.tide.data.trend;
       return trend
-        ? `Tide ${trend} — ${b}.`
-        : `Tide slack — ${b}.`;
+        ? `Modelled tide ${trend} — ${b}.`
+        : `Modelled tide unavailable — ${b}.`;
     }
     case 'pressure': {
       if (marine.weather.status !== 'ok') return `Pressure: ${b}.`;

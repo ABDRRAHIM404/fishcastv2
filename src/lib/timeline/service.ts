@@ -5,7 +5,6 @@ import { buildTimeline } from '@/lib/timeline/build';
 import {
   fetchHourlyForecast,
   fetchHourlyMarine,
-  fetchTideSeries,
 } from '@/lib/marine/forecast';
 import type { ForecastAnchors, Timeline } from '@/lib/timeline/types';
 import type { Json } from '@/lib/supabase/types';
@@ -55,7 +54,10 @@ async function readCache(
   const row = data as TimelineCacheRow | null;
   if (error || !row) return null;
   if (new Date(row.expires_at).getTime() <= Date.now()) return null;
-  return row.payload as unknown as Timeline;
+  const timeline = row.payload as unknown as Timeline;
+  // Do not serve timelines built before modelled sea-level metadata was added.
+  if (timeline.tideMetadata?.source !== 'open-meteo-modelled') return null;
+  return timeline;
 }
 
 async function writeCache(
@@ -92,10 +94,9 @@ export async function getTimelineForSpot(
   const cached = await readCache(spot.id, date);
   if (cached) return cached;
 
-  const [forecast, marine, tide] = await Promise.allSettled([
+  const [forecast, marine] = await Promise.allSettled([
     fetchHourlyForecast(spot.latitude, spot.longitude),
     fetchHourlyMarine(spot.latitude, spot.longitude),
-    fetchTideSeries(spot.latitude, spot.longitude),
   ]);
 
   const anchors: ForecastAnchors = {
@@ -120,7 +121,11 @@ export async function getTimelineForSpot(
             pressureMb: forecast.value.pressureMb,
           }
         : { time: [], precipitationMm: [], cloudCoverPct: [], pressureMb: [] },
-    tide: tide.status === 'fulfilled' ? tide.value : [],
+    tide: {
+      source: 'open-meteo-hourly',
+      intervalMinutes: 60,
+      points: marine.status === 'fulfilled' ? marine.value.seaLevelPoints : [],
+    },
   };
 
   const now = new Date();

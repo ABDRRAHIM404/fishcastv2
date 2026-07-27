@@ -14,7 +14,6 @@ import { normalizeWeather } from '@/lib/weather/normalize';
 import { normalizeWind } from '@/lib/wind/normalize';
 import { fetchOpenMeteoMarine } from '@/lib/waves/client';
 import { normalizeWaves } from '@/lib/waves/normalize';
-import { fetchWorldTides } from '@/lib/tides/client';
 import { normalizeTides } from '@/lib/tides/normalize';
 
 /** Minimal spot shape the marine service needs. */
@@ -43,9 +42,10 @@ function toSection<T>(
 
 /**
  * Resolves normalized marine conditions for a spot. Weather and wind share a
- * single Open-Meteo forecast call (cached per kind); waves use the Marine API;
- * tides use WorldTides. Each section resolves independently so one provider
- * failure never blocks the others. Cache-aware with per-kind TTLs.
+ * single Open-Meteo forecast call (cached per kind). Waves and modelled tide
+ * use one shared Open-Meteo Marine response; the client coalesces concurrent
+ * cache misses for the same coordinates. Each section still resolves
+ * independently so missing sea-level data does not hide available wave data.
  */
 export async function getMarineConditionsForSpot(
   spot: MarineSpotInput
@@ -78,17 +78,21 @@ export async function getMarineConditionsForSpot(
     PROVIDERS.openMeteoMarine,
     async () => {
       const raw = await fetchOpenMeteoMarine(latitude, longitude);
-      return { normalized: normalizeWaves(raw), raw };
+      return { normalized: normalizeWaves(raw) };
     }
   );
 
   const tidePromise = withCache<TideConditions>(
     id,
     'tide',
-    PROVIDERS.worldTides,
+    PROVIDERS.openMeteoMarine,
     async () => {
-      const raw = await fetchWorldTides(latitude, longitude);
-      return { normalized: normalizeTides(raw), raw };
+      const raw = await fetchOpenMeteoMarine(latitude, longitude);
+      const normalized = normalizeTides(raw);
+      if (!normalized) {
+        throw new Error('Modelled sea-level data is unavailable');
+      }
+      return { normalized };
     }
   );
 

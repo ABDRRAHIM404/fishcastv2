@@ -167,14 +167,17 @@ The page must instantly communicate whether fishing conditions are good or bad.
 
 ### Weather & Marine Data
 
-Integrate APIs for:
+Current providers:
 
-* Weather
-* Wind
-* Waves
-* Tide
+* Open-Meteo Forecast for weather and wind
+* Open-Meteo Marine for waves, swell, and modelled sea-level tide estimates
 
 Store snapshots in Supabase.
+
+Tide heights, trends, and high/low events are estimates derived from hourly
+`sea_level_height_msl` values. They are relative to modelled mean sea level,
+are not official nautical tide predictions, and must not be used for
+navigation or other safety-critical decisions.
 
 ---
 

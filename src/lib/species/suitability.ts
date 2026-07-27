@@ -57,7 +57,7 @@ export function evaluateSuitability(
         met = tide.extremes[0]?.state === want;
       }
     }
-    if (met) reasons.push(`${want} tide`);
+    if (met) reasons.push(`modelled ${want} tide`);
     else allMet = false;
   }
 

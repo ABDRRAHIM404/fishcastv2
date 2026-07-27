@@ -54,7 +54,7 @@ export function TimelineReadout({ point }: { point: TimelinePoint }) {
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
       <Metric
         icon={<Droplets className="size-4" aria-hidden />}
-        label="Tide"
+        label="Est. tide"
         value={fmt(point.tideHeightM, ' m', 2)}
       />
       <Metric

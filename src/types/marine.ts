@@ -61,6 +61,16 @@ export interface WaveConditions {
 }
 
 export type TideState = 'high' | 'low';
+export type TideTrend = 'rising' | 'falling' | 'slack';
+
+/**
+ * One hourly sea-level point returned by Open-Meteo Marine. These are provider
+ * source points; the five-minute timeline derives separate interpolated values.
+ */
+export interface ModelledSeaLevelPoint {
+  time: string;
+  heightM: number;
+}
 
 export interface TideExtreme {
   /** ISO 8601 timestamp of the extreme. */
@@ -71,12 +81,22 @@ export interface TideExtreme {
 
 export interface TideConditions {
   observedAt: string;
-  /** Current interpolated tide height, metres (datum per provider). */
+  /** Explicitly modelled data; not an official nautical tide prediction. */
+  source: 'open-meteo-modelled';
+  /** Open-Meteo sea_level_height_msl is relative to global mean sea level. */
+  datum: 'mean-sea-level';
+  /** Native source interval before FishCast interpolation. */
+  sourceIntervalMinutes: 60;
+  /** Current monotone-cubic estimate from hourly provider points, metres. */
   heightM: number | null;
-  /** Whether the tide is currently rising or falling, when derivable. */
-  trend: 'rising' | 'falling' | null;
+  /** Whether modelled sea level is rising, falling, or near a turning point. */
+  trend: TideTrend | null;
   /** Upcoming high/low extremes, chronological. */
   extremes: TideExtreme[];
+  /** Whole minutes from observedAt until the next modelled extreme. */
+  minutesToNextExtreme: number | null;
+  /** Max minus min hourly modelled sea level for the local calendar day. */
+  dailyRangeM: number | null;
 }
 
 export interface AstronomyConditions {

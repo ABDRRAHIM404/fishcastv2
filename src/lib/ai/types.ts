@@ -48,6 +48,7 @@ export interface AiContextSpot {
 export interface AiContextConditions {
   tideState: string | null;
   tideHeightM: number | null;
+  tideSource: 'modelled' | null;
   windSpeedKmh: number | null;
   windDirection: string | null;
   waveHeightM: number | null;

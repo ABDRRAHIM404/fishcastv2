@@ -55,18 +55,40 @@ function WavesBody({ d }: { d: WaveConditions }) {
 
 function TideBody({ d }: { d: TideConditions }) {
   const next = d.extremes[0] ?? null;
+  const untilNext =
+    d.minutesToNextExtreme === null
+      ? null
+      : d.minutesToNextExtreme < 60
+        ? `${d.minutesToNextExtreme} min`
+        : `${Math.floor(d.minutesToNextExtreme / 60)}h ${String(
+            d.minutesToNextExtreme % 60
+          ).padStart(2, '0')}m`;
   const nextLabel = next
     ? `${next.state === 'high' ? 'High' : 'Low'} · ${new Date(
         next.time
-      ).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+      ).toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit',
+        timeZone: 'Africa/Casablanca',
+      })}${untilNext ? ` · in ${untilNext}` : ''}`
     : '—';
   const trend =
-    d.trend === 'rising' ? 'Rising' : d.trend === 'falling' ? 'Falling' : '—';
+    d.trend === 'rising'
+      ? 'Rising'
+      : d.trend === 'falling'
+        ? 'Falling'
+        : d.trend === 'slack'
+          ? 'Slack'
+          : '—';
   return (
     <>
-      <MarineMetric label="Height" value={fmt(d.heightM, ' m', 2)} />
+      <MarineMetric label="Est. height" value={fmt(d.heightM, ' m', 2)} />
       <MarineMetric label="Trend" value={trend} />
       <MarineMetric label="Next" value={nextLabel} />
+      <MarineMetric
+        label="Daily range"
+        value={fmt(d.dailyRangeM, ' m', 2)}
+      />
     </>
   );
 }
@@ -84,7 +106,7 @@ export function MarineConditionsSection({ spotId }: { spotId: string }) {
     <PremiumCard className="p-6">
       <h2 className="font-display text-h3">Marine conditions</h2>
       <p className="mt-1 text-sm text-muted-foreground">
-        Live weather, wind, waves, and tide for this spot.
+        Live weather and waves with modelled tide estimates for this spot.
       </p>
 
       {state.status === 'loading' ? (
@@ -131,7 +153,7 @@ export function MarineConditionsSection({ spotId }: { spotId: string }) {
           </MarineCard>
 
           <MarineCard
-            title="Tide"
+            title="Modelled tide"
             icon={<Droplets className="size-4" aria-hidden />}
             error={state.data.tide.status === 'error' ? 'err' : null}
           >

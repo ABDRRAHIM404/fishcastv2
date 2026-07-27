@@ -17,6 +17,21 @@ import type {
 
 const ISO = '2026-06-14T10:00:00.000Z';
 
+function tide(partial: Partial<TideConditions>): TideConditions {
+  return {
+    observedAt: ISO,
+    source: 'open-meteo-modelled',
+    datum: 'mean-sea-level',
+    sourceIntervalMinutes: 60,
+    heightM: null,
+    trend: null,
+    extremes: [],
+    minutesToNextExtreme: null,
+    dailyRangeM: null,
+    ...partial,
+  };
+}
+
 function wind(partial: Partial<WindConditions>): WindConditions {
   return {
     observedAt: ISO,
@@ -79,13 +94,7 @@ describe('factor rules return null on missing data', () => {
       weatherCode: null,
     };
     expect(scoreWeather(weather)).toBeNull();
-    const tide: TideConditions = {
-      observedAt: ISO,
-      heightM: null,
-      trend: null,
-      extremes: [],
-    };
-    expect(scoreTide(tide)).toBeNull();
+    expect(scoreTide(tide({}))).toBeNull();
   });
 });
 
@@ -107,18 +116,15 @@ describe('scoreWind', () => {
 
 describe('scoreTide', () => {
   it('rewards a moving tide over slack', () => {
-    const moving = scoreTide({
-      observedAt: ISO,
+    const moving = scoreTide(tide({
       heightM: 1,
       trend: 'rising',
-      extremes: [],
-    });
-    const slack = scoreTide({
-      observedAt: ISO,
+    }));
+    const slack = scoreTide(tide({
       heightM: 1,
-      trend: null,
+      trend: 'slack',
       extremes: [{ time: ISO, state: 'high', heightM: 2 }],
-    });
+    }));
     expect(moving).toBe(1);
     expect(slack).toBe(0.5);
   });
