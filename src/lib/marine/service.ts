@@ -15,6 +15,7 @@ import { normalizeWind } from '@/lib/wind/normalize';
 import { fetchOpenMeteoMarine } from '@/lib/waves/client';
 import { normalizeWaves } from '@/lib/waves/normalize';
 import { normalizeTides } from '@/lib/tides/normalize';
+import { calculateAstronomy } from '@/lib/daylight/solar';
 
 /** Minimal spot shape the marine service needs. */
 export interface MarineSpotInput {
@@ -51,6 +52,7 @@ export async function getMarineConditionsForSpot(
   spot: MarineSpotInput
 ): Promise<MarineConditions> {
   const { id, latitude, longitude } = spot;
+  const generatedAt = new Date();
 
   const weatherPromise = withCache<WeatherConditions>(
     id,
@@ -58,7 +60,7 @@ export async function getMarineConditionsForSpot(
     PROVIDERS.openMeteoForecast,
     async () => {
       const raw = await fetchOpenMeteoForecast(latitude, longitude);
-      return { normalized: normalizeWeather(raw), raw };
+      return { normalized: normalizeWeather(raw) };
     }
   );
 
@@ -68,7 +70,7 @@ export async function getMarineConditionsForSpot(
     PROVIDERS.openMeteoForecast,
     async () => {
       const raw = await fetchOpenMeteoForecast(latitude, longitude);
-      return { normalized: normalizeWind(raw), raw };
+      return { normalized: normalizeWind(raw) };
     }
   );
 
@@ -105,10 +107,15 @@ export async function getMarineConditionsForSpot(
 
   return {
     spotId: id,
-    generatedAt: new Date().toISOString(),
+    generatedAt: generatedAt.toISOString(),
     weather: toSection(weather),
     wind: toSection(wind),
     waves: toSection(waves),
     tide: toSection(tide),
+    astronomy: {
+      status: 'ok',
+      cachedAt: generatedAt.toISOString(),
+      data: calculateAstronomy(latitude, longitude, generatedAt),
+    },
   };
 }

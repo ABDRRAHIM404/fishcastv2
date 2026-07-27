@@ -3,9 +3,8 @@ import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 
 /**
- * Service-role Supabase client for trusted server-side writes that must bypass
- * RLS (e.g. caching marine data into marine_cache, which has public read but no
- * public write policy). Never import this in client code. Reads the key from
+ * Service-role Supabase client for trusted server-side cache reads and writes
+ * that must bypass RLS. Never import this in client code. Reads the key from
  * SUPABASE_SERVICE_ROLE_KEY; returns null when not configured so callers can
  * skip caching and still serve fresh data.
  */
@@ -14,7 +13,7 @@ export function createServiceClient() {
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !serviceKey) {
     console.warn(
-      'Service Supabase client unavailable: NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY is not configured. Cache writes will be skipped.'
+      'Service Supabase client unavailable: NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY is not configured. Cache operations will be skipped.'
     );
     return null;
   }

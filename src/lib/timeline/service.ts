@@ -1,5 +1,4 @@
 import 'server-only';
-import { createClient } from '@/lib/supabase/server';
 import { createServiceClient } from '@/lib/supabase/service';
 import { buildTimeline } from '@/lib/timeline/build';
 import {
@@ -8,15 +7,16 @@ import {
 } from '@/lib/marine/forecast';
 import type { ForecastAnchors, Timeline } from '@/lib/timeline/types';
 import type { Json } from '@/lib/supabase/types';
+import type { ForecastEvaluationSpot } from '@/lib/forecast/evaluate';
+import {
+  productDayRange,
+  todayProductDate,
+} from '@/lib/time/casablanca';
 
 /** Timeline cache TTL: 30 min, aligned with marine data TTLs. */
 export const TIMELINE_TTL_MS = 30 * 60 * 1000;
 
-export interface TimelineSpotInput {
-  id: string;
-  latitude: number;
-  longitude: number;
-}
+export type TimelineSpotInput = ForecastEvaluationSpot;
 
 // never[] inference workaround for the new marine_timeline_cache table (same
 // pattern as favorites / marine_cache / score_cache).
@@ -27,24 +27,23 @@ interface TimelineCacheRow {
 
 /** Returns today's local date as YYYY-MM-DD. */
 export function todayLocalDate(now: Date = new Date()): string {
-  const y = now.getFullYear();
-  const m = String(now.getMonth() + 1).padStart(2, '0');
-  const d = String(now.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
+  return todayProductDate(now);
 }
 
 /** Local-day start epoch (ms) for a YYYY-MM-DD date string. */
 export function dayStartMs(date: string): number {
-  return new Date(`${date}T00:00:00`).getTime();
+  return productDayRange(date).startMs;
 }
 
 async function readCache(
   spotId: string,
   date: string
 ): Promise<Timeline | null> {
-  const supabase = await createClient();
+  const service = createServiceClient();
+  if (!service) return null;
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data, error } = await (supabase as any)
+  const { data, error } = await (service as any)
     .from('marine_timeline_cache')
     .select('payload, expires_at')
     .eq('spot_id', spotId)
@@ -55,8 +54,13 @@ async function readCache(
   if (error || !row) return null;
   if (new Date(row.expires_at).getTime() <= Date.now()) return null;
   const timeline = row.payload as unknown as Timeline;
-  // Do not serve timelines built before modelled sea-level metadata was added.
-  if (timeline.tideMetadata?.source !== 'open-meteo-modelled') return null;
+  if (
+    timeline.schemaVersion !== 2 ||
+    timeline.tideMetadata?.source !== 'open-meteo-modelled' ||
+    timeline.date !== date
+  ) {
+    return null;
+  }
   return timeline;
 }
 
@@ -105,13 +109,55 @@ export async function getTimelineForSpot(
         ? {
             time: forecast.value.time,
             speedKmh: forecast.value.windSpeedKmh,
+            gustKmh: forecast.value.windGustKmh,
             directionDeg: forecast.value.windDirectionDeg,
+            fetchedAt: forecast.value.fetchedAt,
           }
-        : { time: [], speedKmh: [], directionDeg: [] },
+        : {
+            time: [],
+            speedKmh: [],
+            gustKmh: [],
+            directionDeg: [],
+            fetchedAt: null,
+          },
     waves:
       marine.status === 'fulfilled'
-        ? { time: marine.value.time, heightM: marine.value.waveHeightM }
-        : { time: [], heightM: [] },
+        ? {
+            time: marine.value.time,
+            heightM: marine.value.waveHeightM,
+            periodS: marine.value.wavePeriodS,
+            directionDeg: marine.value.waveDirectionDeg,
+            swellHeightM: marine.value.swellHeightM,
+            swellPeriodS: marine.value.swellPeriodS,
+            swellDirectionDeg: marine.value.swellDirectionDeg,
+            secondarySwellHeightM: marine.value.secondarySwellHeightM,
+            secondarySwellPeriodS: marine.value.secondarySwellPeriodS,
+            secondarySwellDirectionDeg:
+              marine.value.secondarySwellDirectionDeg,
+            seaSurfaceTemperatureC:
+              marine.value.seaSurfaceTemperatureC,
+            oceanCurrentVelocityKmh:
+              marine.value.oceanCurrentVelocityKmh,
+            oceanCurrentDirectionDeg:
+              marine.value.oceanCurrentDirectionDeg,
+            fetchedAt: marine.value.fetchedAt,
+          }
+        : {
+            time: [],
+            heightM: [],
+            periodS: [],
+            directionDeg: [],
+            swellHeightM: [],
+            swellPeriodS: [],
+            swellDirectionDeg: [],
+            secondarySwellHeightM: [],
+            secondarySwellPeriodS: [],
+            secondarySwellDirectionDeg: [],
+            seaSurfaceTemperatureC: [],
+            oceanCurrentVelocityKmh: [],
+            oceanCurrentDirectionDeg: [],
+            fetchedAt: null,
+          },
     weather:
       forecast.status === 'fulfilled'
         ? {
@@ -119,20 +165,37 @@ export async function getTimelineForSpot(
             precipitationMm: forecast.value.precipitationMm,
             cloudCoverPct: forecast.value.cloudCoverPct,
             pressureMb: forecast.value.pressureMb,
+            temperatureC: forecast.value.temperatureC,
+            visibilityM: forecast.value.visibilityM,
+            weatherCode: forecast.value.weatherCode,
+            fetchedAt: forecast.value.fetchedAt,
           }
-        : { time: [], precipitationMm: [], cloudCoverPct: [], pressureMb: [] },
+        : {
+            time: [],
+            precipitationMm: [],
+            cloudCoverPct: [],
+            pressureMb: [],
+            temperatureC: [],
+            visibilityM: [],
+            weatherCode: [],
+            fetchedAt: null,
+          },
     tide: {
       source: 'open-meteo-hourly',
       intervalMinutes: 60,
       points: marine.status === 'fulfilled' ? marine.value.seaLevelPoints : [],
+      fetchedAt:
+        marine.status === 'fulfilled' ? marine.value.fetchedAt : null,
     },
   };
 
   const now = new Date();
+  const range = productDayRange(date);
   const timeline = buildTimeline(
-    spot.id,
+    spot,
     date,
-    now.getTime(),
+    range.startMs,
+    range.endMs,
     anchors,
     now
   );

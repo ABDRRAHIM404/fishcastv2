@@ -1,5 +1,4 @@
 import 'server-only';
-import { createClient } from '@/lib/supabase/server';
 import { createServiceClient } from '@/lib/supabase/service';
 import { AI_TTL_MS, PROMPT_VERSION } from '@/lib/ai/constants';
 import { parseRecommendation } from '@/lib/ai/schema';
@@ -12,9 +11,9 @@ import type {
 
 /**
  * ai_recommendations cache. Mirrors the marine_cache / marine_timeline_cache
- * pattern: anon client reads (RLS public read), service-role client writes
- * (bypasses RLS). The `never[]` inference workaround + eslint-disable casts
- * are intentional and consistent with those modules (table added after the
+ * pattern: the server-only service-role client reads and writes (bypassing
+ * RLS). The `never[]` inference workaround + eslint-disable casts are
+ * intentional and consistent with those modules (table added after the
  * generated types were last produced).
  */
 
@@ -31,9 +30,11 @@ export async function readAiCache(
   date: string,
   payloadHash: string
 ): Promise<AiRecommendationResponse | null> {
-  const supabase = await createClient();
+  const service = createServiceClient();
+  if (!service) return null;
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data, error } = await (supabase as any)
+  const { data, error } = await (service as any)
     .from('ai_recommendations')
     .select('recommendation, source, payload_hash, generated_at, expires_at')
     .eq('spot_id', spotId)

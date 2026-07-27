@@ -1,8 +1,7 @@
 import 'server-only';
-import { createClient } from '@/lib/supabase/server';
 import { createServiceClient } from '@/lib/supabase/service';
 import { SCORE_TTL_MS } from '@/lib/scoring/constants';
-import type { ScoreResult } from '@/lib/scoring/types';
+import type { CurrentForecastResult } from '@/lib/forecast/evaluate';
 import type { Json } from '@/lib/supabase/types';
 
 type ScoreCacheRow = {
@@ -14,10 +13,12 @@ type ScoreCacheRow = {
 /** Returns a fresh cached ScoreResult for a spot, or null when missing/expired. */
 export async function readScoreCache(
   spotId: string
-): Promise<ScoreResult | null> {
-  const supabase = await createClient();
+): Promise<CurrentForecastResult | null> {
+  const service = createServiceClient();
+  if (!service) return null;
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data, error } = await (supabase as any)
+  const { data, error } = await (service as any)
     .from('score_cache')
     .select('score, factors, computed_at')
     .eq('spot_id', spotId)
@@ -30,8 +31,16 @@ export async function readScoreCache(
     return null;
   }
 
-  const cached = data.factors as unknown as ScoreResult | null;
-  if (!cached || typeof cached.percentage !== 'number') return null;
+  const cached = data.factors as unknown as CurrentForecastResult | null;
+  if (
+    !cached ||
+    cached.schemaVersion !== 2 ||
+    typeof cached.fishing?.percentage !== 'number' ||
+    typeof cached.safety?.status !== 'string' ||
+    !cached.conditions
+  ) {
+    return null;
+  }
   return cached;
 }
 
@@ -41,7 +50,7 @@ export async function readScoreCache(
  */
 export async function writeScoreCache(
   spotId: string,
-  result: ScoreResult
+  result: CurrentForecastResult
 ): Promise<void> {
   const service = createServiceClient();
   if (!service) return;
@@ -51,8 +60,8 @@ export async function writeScoreCache(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   await (service as any).from('score_cache').insert({
     spot_id: spotId,
-    score: result.overallScore,
+    score: result.fishing.overallScore,
     factors: result as unknown as Json,
-    computed_at: result.computedAt,
+    computed_at: result.evaluatedAt,
   });
 }

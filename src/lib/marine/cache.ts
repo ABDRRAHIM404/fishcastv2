@@ -1,5 +1,4 @@
 import 'server-only';
-import { createClient } from '@/lib/supabase/server';
 import { createServiceClient } from '@/lib/supabase/service';
 import { TTL_MS } from '@/lib/marine/constants';
 import type { MarineKind } from '@/types/marine';
@@ -18,17 +17,19 @@ type MarineCacheRow = {
 };
 
 /**
- * Reads a fresh cache entry for (spotId, kind) using the public anon client
- * (RLS allows SELECT). Returns null when missing or expired.
+ * Reads a fresh cache entry for (spotId, kind) using the trusted server-only
+ * service client. Returns null when unavailable, missing, or expired.
  */
 export async function readCache<T>(
   spotId: string,
   kind: MarineKind,
   expectedProvider?: string
 ): Promise<CacheEntry<T> | null> {
-  const supabase = await createClient();
+  const service = createServiceClient();
+  if (!service) return null;
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data, error } = await (supabase as any)
+  const { data, error } = await (service as any)
     .from('marine_cache')
     .select('normalized, provider, fetched_at, expires_at')
     .eq('spot_id', spotId)
@@ -51,8 +52,7 @@ export async function writeCache<T>(
   spotId: string,
   kind: MarineKind,
   provider: string,
-  normalized: T,
-  raw?: unknown
+  normalized: T
 ): Promise<string> {
   const fetchedAt = new Date();
   const expiresAt = new Date(fetchedAt.getTime() + TTL_MS[kind]);
@@ -66,7 +66,6 @@ export async function writeCache<T>(
         kind,
         provider,
         normalized: normalized as never,
-        raw: (raw ?? null) as never,
         fetched_at: fetchedAt.toISOString(),
         expires_at: expiresAt.toISOString(),
       },
@@ -85,12 +84,12 @@ export async function withCache<T>(
   spotId: string,
   kind: MarineKind,
   provider: string,
-  load: () => Promise<{ normalized: T; raw?: unknown }>
+  load: () => Promise<{ normalized: T }>
 ): Promise<CacheEntry<T>> {
   const cached = await readCache<T>(spotId, kind, provider);
   if (cached) return cached;
 
-  const { normalized, raw } = await load();
-  const cachedAt = await writeCache(spotId, kind, provider, normalized, raw);
+  const { normalized } = await load();
+  const cachedAt = await writeCache(spotId, kind, provider, normalized);
   return { data: normalized, cachedAt };
 }
