@@ -24,12 +24,11 @@ A feature-oriented Next.js 15 App Router layout:
 fishcastv2/
 ├── src/
 │   ├── app/
-│   │   ├── (auth)/login/            # Auth routes
 │   │   ├── (main)/
 │   │   │   ├── map/                 # Interactive map page
 │   │   │   ├── spots/[id]/          # Spot details page
 │   │   │   ├── species/             # Species catalog + per-spot species
-│   │   │   └── favorites/
+│   │   │   └── favorites/           # Device-local saved spots
 │   │   ├── api/
 │   │   │   ├── weather/             # Weather/marine proxy routes
 │   │   │   ├── score/               # Scoring endpoint
@@ -47,7 +46,8 @@ fishcastv2/
 │   │   ├── species/                 # Species cards, seasonality, filters
 │   │   └── shared/                  # Skeletons, animations
 │   ├── lib/
-│   │   ├── supabase/                # Client + server clients
+│   │   ├── supabase/                # Anonymous read + service-role clients
+│   │   ├── spots/local-favorites.ts # Versioned local favourites data
 │   │   ├── scoring/                 # Deterministic score engine
 │   │   ├── difficulty/              # Spot difficulty calculation
 │   │   ├── windows/                 # Best fishing window detection
@@ -55,7 +55,7 @@ fishcastv2/
 │   │   ├── marine/                  # API adapters, interpolation
 │   │   ├── ai/                      # Gemini prompt builders
 │   │   └── utils/
-│   ├── hooks/                       # TanStack Query hooks
+│   ├── hooks/                       # Data hooks + shared local favourites
 │   ├── types/                       # Shared TS types
 │   └── config/                      # Theme, constants, region data
 ├── supabase/
@@ -68,13 +68,13 @@ fishcastv2/
 
 Core tables, designed for expansion beyond the initial region:
 
-- **`profiles`** — extends `auth.users`; `id`, `display_name`, `avatar_url`, `created_at`.
+- **`profiles`** — legacy account table retained in the database but unused by the public application.
 - **`regions`** — `id`, `name` (e.g. "Souss-Massa"), `country`, `bounds`. Enables future expansion.
 - **`spots`** — `id`, `region_id` (FK), `name`, `lat`, `lng` (or `geography(Point)` with PostGIS), `type` (enum: beach, rocks, port, river_mouth, pier), `description`, `difficulty_level` (enum: beginner, intermediate, advanced, expert), `difficulty_factors` (jsonb: access, terrain, swimming/hazard notes), `created_at`.
 - **`spot_photos`** — `id`, `spot_id` (FK), `url`, `position`.
-- **`favorites`** — `user_id` (FK), `spot_id` (FK), composite PK.
+- **`favorites`** — legacy account-favourites table retained without application reads or writes. Active favourites use versioned browser local storage.
 - **`condition_snapshots`** — `id`, `spot_id` (FK), `captured_at`, `tide_height`, `tide_state`, `wind_speed`, `wind_dir`, `wave_height`, `weather` (jsonb), `source`. Stores fetched marine data.
-- **`community_reports`** — `id`, `spot_id` (FK), `user_id` (FK), `species_id` (FK, nullable), `catch_count`, `notes`, `rating`, `created_at`. Feeds the score engine and species presence.
+- **`community_reports`** — legacy table retained but unused; public submission is postponed.
 - **`score_cache`** — optional: `spot_id`, `computed_at`, `score`, `factors` (jsonb) for performance.
 
 **Species tracking tables:**
@@ -83,7 +83,7 @@ Core tables, designed for expansion beyond the initial region:
 - **`spot_species`** — junction: `spot_id` (FK), `species_id` (FK), `season_months` (int[] 1–12), `prevalence` (enum: common, occasional, rare), `notes`. Composite PK `(spot_id, species_id)`.
 - **`best_windows`** *(optional cache)* — `id`, `spot_id` (FK), `date`, `windows` (jsonb: array of `{ start, end, peak_score, label }`), `computed_at`. Caches the daily best-window calculation.
 
-**RLS policies:** public read on `spots`/`regions`/`spot_photos`/`species`/`spot_species`; authenticated write on `favorites`/`community_reports`; users can only modify their own rows.
+**Application data access:** anonymous reads are limited in application code to public reference data and normalized caches. No anonymous database writes are added. Service-role cache writes remain server-only. Legacy account tables and their deployed policies require a separate database-policy review before any future reuse.
 
 #### API Architecture
 
@@ -104,7 +104,7 @@ TanStack Query handles all client fetching, caching, and background revalidation
 
 **Spot difficulty levels** — Computed in `lib/difficulty` from static spot attributes (access, terrain/spot type, known hazards) combined optionally with live conditions (high waves/wind raise effective difficulty). Output is one of: `Beginner`, `Intermediate`, `Advanced`, `Expert`, plus a factor breakdown shown as a badge on spot cards and the details page.
 
-**Species tracking** — Each spot lists its targetable species with seasonality (`season_months`) and prevalence. `lib/species` cross-references a species' `preferred_conditions` against current/timeline conditions to flag which species are *favored right now*. Community reports with a `species_id` reinforce real-world presence over time.
+**Species tracking** — Each spot lists its targetable species with seasonality (`season_months`) and prevalence. `lib/species` cross-references a species' `preferred_conditions` against current/timeline conditions to flag which species are *favored right now*.
 
 **Automatic best fishing window calculations** — Deterministic, runs in `lib/windows` over the 5-minute interpolated timeline. For each increment it uses the existing fishing score, then detects contiguous runs above thresholds to produce ranked windows (`Excellent`/`Good`/`Moderate`), each with `start`, `end`, peak time, and peak score. These windows drive the timeline highlights and answer "when should I fish today?". Optionally cached per spot per day in `best_windows`.
 
@@ -118,11 +118,11 @@ TanStack Query handles all client fetching, caching, and background revalidation
 - Create base layout, skeleton loaders, premium card primitives.
 - *Milestone:* runnable app with design system; no business logic.
 
-**Phase 2 — Supabase & Auth**
+**Phase 2 — Supabase Public Data Foundation**
 - Create migrations for all tables above (including `species`, `spot_species`, and `spots.difficulty_level`); enable RLS.
-- Wire Supabase server/client; implement email + Google login.
-- Protected actions and favorites scaffolding.
-- *Milestone:* user can sign in; full schema deployed.
+- Wire anonymous server reads and protected service-role cache writes.
+- Store favourites locally in the browser without accounts.
+- *Milestone:* public reference data is available immediately; full schema remains deployed.
 
 **Phase 3 — Map & Spots**
 - Leaflet/OpenStreetMap dark ocean-style tiles, custom markers, clustering, animations.
@@ -131,7 +131,7 @@ TanStack Query handles all client fetching, caching, and background revalidation
 - *Milestone:* map renders real local spots with difficulty, mobile-friendly.
 
 **Phase 4 — Spot Details Page**
-- Hero image, conditions layout, difficulty breakdown, community reports section (static data shells).
+- Hero image, conditions layout, and difficulty breakdown.
 - *Milestone:* navigable spot page communicating good/bad and difficulty at a glance.
 
 **Phase 5 — Weather & Marine Data**
@@ -140,7 +140,7 @@ TanStack Query handles all client fetching, caching, and background revalidation
 - *Milestone:* real marine data displayed and stored.
 
 **Phase 6 — Fishing Score Engine**
-- Deterministic, testable scoring from tide/wind/waves/weather/community/catches.
+- Deterministic, testable scoring from the normalized marine and weather model.
 - 0–10 score, labels, factor breakdown UI.
 - *Milestone:* reproducible scores with unit tests.
 
@@ -153,7 +153,6 @@ TanStack Query handles all client fetching, caching, and background revalidation
 **Phase 8 — Species Tracking**
 - Species catalog + per-spot species with seasonality and prevalence.
 - Species cards on spot page; "favored now" flags cross-referencing live/timeline conditions.
-- Link community reports to species.
 - *Milestone:* users see what to catch, when, and which species suit current conditions.
 
 **Phase 9 — Gemini Integration**

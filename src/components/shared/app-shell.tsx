@@ -15,10 +15,8 @@ import { cn } from '@/lib/utils';
  */
 export function AppShell({
   children,
-  authSlot,
 }: {
   children: React.ReactNode;
-  authSlot?: React.ReactNode;
 }) {
   const pathname = usePathname();
 
@@ -48,7 +46,6 @@ export function AppShell({
                 {item.title}
               </Link>
             ))}
-            {authSlot}
           </nav>
         </div>
       </header>

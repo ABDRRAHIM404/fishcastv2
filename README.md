@@ -101,12 +101,12 @@ The app should feel like a premium consumer product.
 
 ## Core Features
 
-### Authentication
+### Public access
 
-* Email login
-* Google login
-* Protected actions
-* Favorite spots
+* No login, signup, account, or protected pages
+* Fishing information is available immediately
+* Favorite spots are stored locally on the current device
+* Clearing browser storage removes local favorites
 
 ---
 
@@ -159,7 +159,6 @@ Display:
 * Waves
 * Fishing score
 * AI recommendation
-* Community reports
 
 The page must instantly communicate whether fishing conditions are good or bad.
 
@@ -189,8 +188,9 @@ Generate a deterministic score from:
 * Wind
 * Waves
 * Weather
-* Community activity
-* Recent catches
+* Pressure
+* Moon phase
+* Time of day
 
 Score:
 
@@ -286,7 +286,7 @@ Phase 2
 
 * Supabase
 * Database schema
-* Authentication
+* Anonymous public reference-data reads
 
 Phase 3
 
@@ -327,7 +327,6 @@ Phase 9
 
 Instead ask:
 
-* Build authentication.
 * Build Supabase schema.
 * Build Leaflet/OpenStreetMap integration.
 * Build weather services.

@@ -17,7 +17,6 @@ import { cn } from '@/lib/utils';
 import { getSpotBySlug } from '@/lib/spots/queries';
 import { getSpotPhotos } from '@/lib/spots/photos';
 import { getSpotSpecies, getSpeciesCatalog } from '@/lib/species/queries';
-import { isSpotFavorited } from '@/lib/spots/favorites';
 import { getMarineConditionsForSpot } from '@/lib/marine/service';
 import { evaluateSuitability } from '@/lib/species/suitability';
 import { isInSeason } from '@/types/species';
@@ -64,10 +63,9 @@ export default async function SpotDetailsPage({
   if (!spot) notFound();
 
   // Fetch presentation data in parallel. Species/photos are read-only here.
-  const [photos, species, favorited, catalog, marine] = await Promise.all([
+  const [photos, species, catalog, marine] = await Promise.all([
     getSpotPhotos(spot.id),
     getSpotSpecies(spot.id),
-    isSpotFavorited(spot.id),
     getSpeciesCatalog(),
     // Resilient: if marine data fails, flags simply default to not-favored.
     getMarineConditionsForSpot({
@@ -184,7 +182,7 @@ export default async function SpotDetailsPage({
             </dl>
 
             <div className="mt-5 space-y-2">
-              <FavoriteButton spotId={spot.id} initialFavorited={favorited} />
+              <FavoriteButton spotId={spot.id} />
               <a
                 href={`https://www.google.com/maps/search/?api=1&query=${spot.latitude},${spot.longitude}`}
                 target="_blank"

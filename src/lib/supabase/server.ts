@@ -1,34 +1,22 @@
-import { createServerClient, type CookieOptions } from '@supabase/ssr';
-import { cookies } from 'next/headers';
+import 'server-only';
+import { unstable_noStore as noStore } from 'next/cache';
+import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 
 /**
- * Server-side Supabase client (Server Components, Route Handlers, Server Actions).
- * Next.js 15: cookies() is async.
+ * Anonymous server-side Supabase client for public reads. It deliberately has
+ * no cookie adapter or persisted session; trusted writes use service.ts.
  */
 export async function createClient() {
-  const cookieStore = await cookies();
-
-  return createServerClient<Database>(
+  noStore();
+  return createSupabaseClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll();
-        },
-        setAll(
-          cookiesToSet: { name: string; value: string; options?: CookieOptions }[]
-        ) {
-          try {
-            cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options)
-            );
-          } catch {
-            // Called from a Server Component — safe to ignore when middleware
-            // is refreshing sessions.
-          }
-        },
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+        detectSessionInUrl: false,
       },
     }
   );

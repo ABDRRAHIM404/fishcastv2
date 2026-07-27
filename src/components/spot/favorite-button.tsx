@@ -1,63 +1,66 @@
 'use client';
 
-import { useState, useTransition } from 'react';
 import { Heart } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { addFavorite, removeFavorite } from '@/lib/supabase/actions';
+import { useLocalFavorites } from '@/hooks/use-local-favorites';
 import { cn } from '@/lib/utils';
 
-/**
- * Optimistic favorite toggle for the spot details page.
- *
- * Reuses the existing addFavorite / removeFavorite server actions (no
- * duplicate favorites logic). State flips immediately for a premium, instant
- * feel; the server action runs inside a transition and the optimistic value is
- * rolled back if it throws. Logged-out users are redirected to /login by the
- * server action's existing auth flow.
- */
 export function FavoriteButton({
   spotId,
-  initialFavorited,
   className,
 }: {
   spotId: string;
-  initialFavorited: boolean;
   className?: string;
 }) {
-  const [favorited, setFavorited] = useState(initialFavorited);
-  const [isPending, startTransition] = useTransition();
-
-  function toggle() {
-    const next = !favorited;
-    setFavorited(next); // optimistic
-    startTransition(async () => {
-      try {
-        if (next) {
-          await addFavorite(spotId);
-        } else {
-          await removeFavorite(spotId);
-        }
-      } catch {
-        setFavorited(!next); // rollback on failure
-      }
-    });
-  }
+  const {
+    status,
+    error,
+    available,
+    isFavorite,
+    toggleFavorite,
+  } = useLocalFavorites();
+  const favorited = isFavorite(spotId);
+  const pending = status === 'pending';
+  const feedback = pending
+    ? 'Loading saved status'
+    : error
+      ? error
+      : favorited
+        ? 'Spot saved on this device'
+        : 'Spot not saved';
 
   return (
-    <Button
-      type="button"
-      variant={favorited ? 'default' : 'outline'}
-      onClick={toggle}
-      disabled={isPending}
-      aria-pressed={favorited}
-      aria-label={favorited ? 'Remove from favorites' : 'Save to favorites'}
-      className={cn('w-full', className)}
-    >
-      <Heart
-        className={cn('size-4', favorited && 'fill-current')}
-        aria-hidden
-      />
-      {favorited ? 'Saved' : 'Save spot'}
-    </Button>
+    <div className={cn('w-full', className)}>
+      <Button
+        type="button"
+        variant={favorited ? 'default' : 'outline'}
+        onClick={() => toggleFavorite(spotId)}
+        disabled={!available}
+        aria-busy={pending}
+        aria-pressed={favorited}
+        aria-label={
+          pending
+            ? 'Loading saved status'
+            : favorited
+              ? 'Remove from favorites'
+              : 'Save to favorites'
+        }
+        className="w-full"
+      >
+        <Heart
+          className={cn('size-4', favorited && 'fill-current')}
+          aria-hidden
+        />
+        {pending ? 'Loading…' : favorited ? 'Saved' : 'Save spot'}
+      </Button>
+      <span className="sr-only" role="status" aria-live="polite">
+        {feedback}
+      </span>
+      {error ? (
+        <p className="mt-2 text-xs text-destructive" role="alert">
+          {error}
+        </p>
+      ) : null}
+    </div>
   );
 }
