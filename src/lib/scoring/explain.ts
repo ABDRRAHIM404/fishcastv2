@@ -54,8 +54,11 @@ export function explainFactor(
     case 'tide': {
       if (marine.tide.status !== 'ok') return `Modelled tide: ${b}.`;
       const trend = marine.tide.data.trend;
+      const rate = marine.tide.data.rateMPerHour;
       return trend
-        ? `Modelled tide ${trend} — ${b}.`
+        ? `Modelled tide ${trend}${
+            rate === null ? '' : ` at ${Math.abs(rate).toFixed(2)} m/h`
+          } — ${b}.`
         : `Modelled tide unavailable — ${b}.`;
     }
     case 'pressure': {
@@ -71,7 +74,12 @@ export function explainFactor(
       }
       return `Moon phase — ${b}.`;
     }
-    case 'timeOfDay':
-      return 'Time of day score based on dawn/dusk timing.';
+    case 'timeOfDay': {
+      const state =
+        marine.astronomy?.status === 'ok'
+          ? marine.astronomy.data.daylightState
+          : 'unknown';
+      return `Calculated daylight state: ${state}.`;
+    }
   }
 }

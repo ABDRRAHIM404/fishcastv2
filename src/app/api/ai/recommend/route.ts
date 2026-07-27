@@ -42,11 +42,13 @@ export async function POST(request: Request) {
   try {
     const result = await getAiRecommendationForSpot({
       id: spot.id,
+      slug: spot.slug,
       name: spot.name,
       latitude: spot.latitude,
       longitude: spot.longitude,
       spotType: spot.spotType,
       difficultyLevel: spot.difficultyLevel,
+      difficultyFactors: spot.difficultyFactors,
     });
 
     return NextResponse.json(result);

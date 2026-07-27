@@ -63,6 +63,14 @@ export function AiRecommendationCard({ spotId }: { spotId: string }) {
             <Badge variant={VERDICT_VARIANT[state.data.recommendation.verdict]}>
               {VERDICT_LABEL[state.data.recommendation.verdict]}
             </Badge>
+            <Badge variant="outline">
+              {state.data.source === 'gemini'
+                ? 'AI-generated'
+                : 'Deterministic fallback'}
+            </Badge>
+            <span className="text-sm capitalize text-muted-foreground">
+              {state.data.recommendation.confidence} confidence
+            </span>
             {state.data.recommendation.bestWindow ? (
               <span className="inline-flex items-center gap-1 text-sm text-muted-foreground">
                 <Clock className="size-4" aria-hidden />

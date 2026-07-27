@@ -5,6 +5,7 @@ import { getTimelineForSpot, todayLocalDate } from '@/lib/timeline/service';
 import { getSpotSpecies, getSpeciesCatalog } from '@/lib/species/queries';
 import { SPOT_TYPE_LABELS, DIFFICULTY_LABELS } from '@/types/spot';
 import type { SpotType, DifficultyLevel } from '@/types/spot';
+import type { DifficultyFactors } from '@/types/spot';
 import type { Timeline } from '@/lib/timeline/types';
 import { buildAiContext, hashAiContext } from '@/lib/ai/context';
 import { buildFallbackRecommendation } from '@/lib/ai/fallback';
@@ -17,11 +18,13 @@ import type { AiRecommendationResponse } from '@/lib/ai/types';
 /** Spot fields the AI service needs (no free-text content). */
 export interface AiServiceSpotInput {
   id: string;
+  slug: string;
   name: string;
   latitude: number;
   longitude: number;
   spotType: SpotType;
   difficultyLevel: DifficultyLevel;
+  difficultyFactors: DifficultyFactors | null;
 }
 
 /**
@@ -47,11 +50,23 @@ export async function getAiRecommendationForSpot(
       }),
       getScoreForSpot({
         id: spot.id,
+        slug: spot.slug,
         latitude: spot.latitude,
         longitude: spot.longitude,
+        spotType: spot.spotType,
+        difficultyLevel: spot.difficultyLevel,
+        difficultyFactors: spot.difficultyFactors,
       }),
       getTimelineForSpot(
-        { id: spot.id, latitude: spot.latitude, longitude: spot.longitude },
+        {
+          id: spot.id,
+          slug: spot.slug,
+          latitude: spot.latitude,
+          longitude: spot.longitude,
+          spotType: spot.spotType,
+          difficultyLevel: spot.difficultyLevel,
+          difficultyFactors: spot.difficultyFactors,
+        },
         localDate
       ).then(
         (t): Timeline | null => t,
@@ -72,7 +87,9 @@ export async function getAiRecommendationForSpot(
       difficultyLabel: DIFFICULTY_LABELS[spot.difficultyLevel],
     },
     marine,
-    score,
+    score: score.fishing,
+    safety: score.safety,
+    integrity: score.integrity,
     timeline: timelineResult,
     species,
     preferredById,

@@ -2,9 +2,8 @@
  * Deterministic scoring constants. Pure data only — no UI, no I/O. Changing
  * these changes the score in a predictable, testable way.
  *
- * Phase 6 scope: wind, wave, swell, weather, tide. Time-of-day is scaffolded
- * (weight present, factor disabled) so a later phase can enable it without a
- * structural change.
+ * Phase 2 integrity scope evaluates marine, weather, tide, calculated
+ * daylight, and lunar timing through one fixed-weight contract.
  */
 import type { FactorKey } from '@/lib/scoring/types';
 
@@ -12,9 +11,7 @@ import type { FactorKey } from '@/lib/scoring/types';
 export const SCORE_TTL_MS = 30 * 60 * 1000;
 
 /**
- * Relative weights per factor. Weights of ENABLED factors are renormalized at
- * runtime, so factors with missing data drop out cleanly without skewing the
- * total. Time-of-day is included for architecture but disabled in Phase 6.
+ * Fixed weights per factor. They are never renormalized around missing data.
  */
 export const FACTOR_WEIGHTS: Record<FactorKey, number> = {
   wind: 0.24,
@@ -27,7 +24,7 @@ export const FACTOR_WEIGHTS: Record<FactorKey, number> = {
   timeOfDay: 0.05,
 };
 
-/** Factors evaluated in Phase 6, including diurnal + lunar support. */
+/** Factors evaluated by current and timeline paths. */
 export const ENABLED_FACTORS: readonly FactorKey[] = [
   'wind',
   'wave',
@@ -38,6 +35,14 @@ export const ENABLED_FACTORS: readonly FactorKey[] = [
   'moon',
   'timeOfDay',
 ] as const;
+
+/** Missing critical data contributes zero; non-critical gaps are neutral 0.5. */
+export const CRITICAL_SCORE_FACTORS = new Set<FactorKey>([
+  'wind',
+  'wave',
+  'tide',
+]);
+export const NON_CRITICAL_MISSING_SCORE = 0.5;
 
 /**
  * Wind speed (km/h) thresholds. Light/moderate wind is ideal; strong wind

@@ -59,7 +59,6 @@ function dayBoundaries(points: TimelinePoint[]): number[] {
   return boundaries;
 }
 
-const hourTicks = [0, 6, 12, 18, 24, 30, 36, 42, 48];
 const fmtHour = (h: number) => `${String(Math.round(h)).padStart(2, '0')}h`;
 
 /** Window highlight overlays shared by every chart. */
@@ -69,7 +68,6 @@ function WindowAreas({ windows, points }: { windows: FishingWindow[]; points: Ti
   return (
     <>
       {windows
-        .filter((w) => w.label !== 'Poor')
         .map((w, i) => {
           const start = new Date(w.start);
           const end = new Date(w.end);
@@ -108,16 +106,6 @@ function ChartFrame({
   );
 }
 
-const axisProps = {
-  type: 'number' as const,
-  domain: [0, 48] as [number, number],
-  ticks: hourTicks,
-  tickFormatter: fmtHour,
-  dataKey: 'hour',
-  tick: { fontSize: 10, fill: 'hsl(var(--muted-foreground))' },
-  stroke: 'hsl(var(--border))',
-};
-
 /**
  * Synced Recharts visualizations for the timeline: tide area, wind line, wave
  * line, and fishing-score line. Best fishing windows are highlighted on every
@@ -133,6 +121,26 @@ export function TimelineCharts({
   activeHour: number;
 }) {
   const data = toData(points);
+  const maxHours =
+    points.length > 1
+      ? Math.ceil(
+          (new Date(points[points.length - 1]!.time).getTime() -
+            new Date(points[0]!.time).getTime()) /
+            3_600_000
+        )
+      : 24;
+  const axisProps = {
+    type: 'number' as const,
+    domain: [0, maxHours] as [number, number],
+    ticks: Array.from(
+      { length: Math.floor(maxHours / 6) + 1 },
+      (_, index) => index * 6
+    ),
+    tickFormatter: fmtHour,
+    dataKey: 'hour',
+    tick: { fontSize: 10, fill: 'hsl(var(--muted-foreground))' },
+    stroke: 'hsl(var(--border))',
+  };
   const cursor = (
     <ReferenceLine x={activeHour} stroke="hsl(var(--primary))" strokeWidth={1.5} />
   );
@@ -173,7 +181,6 @@ export function TimelineCharts({
             strokeWidth={2}
             fill="url(#tideFill)"
             isAnimationActive={false}
-            connectNulls
           />
           {cursor}
         </AreaChart>
@@ -219,7 +226,6 @@ export function TimelineCharts({
             strokeWidth={2}
             dot={false}
             isAnimationActive={false}
-            connectNulls
           />
           {cursor}
         </LineChart>
@@ -242,7 +248,6 @@ export function TimelineCharts({
             strokeWidth={2}
             dot={false}
             isAnimationActive={false}
-            connectNulls
           />
           {cursor}
         </LineChart>

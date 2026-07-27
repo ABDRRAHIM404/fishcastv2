@@ -8,8 +8,9 @@ import { OPEN_METEO_FORECAST_URL } from '@/lib/marine/constants';
  * supplies both weather and wind fields.
  */
 export interface OpenMeteoForecastResponse {
+  utc_offset_seconds?: number;
   current?: {
-    time?: string;
+    time?: string | number;
     temperature_2m?: number;
     apparent_temperature?: number;
     relative_humidity_2m?: number;
@@ -20,6 +21,7 @@ export interface OpenMeteoForecastResponse {
     wind_gusts_10m?: number;
     wind_direction_10m?: number;
     surface_pressure?: number;
+    visibility?: number;
   };
 }
 
@@ -34,6 +36,7 @@ const CURRENT_FIELDS = [
   'wind_gusts_10m',
   'wind_direction_10m',
   'surface_pressure',
+  'visibility',
 ].join(',');
 
 export async function fetchOpenMeteoForecast(
@@ -45,7 +48,9 @@ export async function fetchOpenMeteoForecast(
     longitude: lng,
     current: CURRENT_FIELDS,
     wind_speed_unit: 'kmh',
-    timezone: 'auto',
+    timezone: 'Africa/Casablanca',
+    forecast_days: 7,
+    timeformat: 'unixtime',
   });
   return fetchJson<OpenMeteoForecastResponse>(url);
 }

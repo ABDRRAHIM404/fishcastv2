@@ -7,6 +7,8 @@ import {
   FACTOR_WEIGHTS,
   ENABLED_FACTORS,
   GRADE_THRESHOLDS,
+  CRITICAL_SCORE_FACTORS,
+  NON_CRITICAL_MISSING_SCORE,
 } from '@/lib/scoring/constants';
 import {
   scoreWind,
@@ -21,6 +23,8 @@ import {
 import { explainFactor } from '@/lib/scoring/explain';
 import type { FactorKey, FactorScore, ScoreResult } from '@/lib/scoring/types';
 import type { MarineConditions } from '@/types/marine';
+import type { ForecastIntegrity } from '@/types/forecast';
+import { assessForecastIntegrity } from '@/lib/forecast/integrity';
 
 const FACTOR_LABELS: Record<FactorKey, string> = {
   wind: 'Wind',
@@ -73,57 +77,74 @@ export function gradeFor(percentage: number): string {
   return 'D';
 }
 
+export function scoreLabelFor(
+  percentage: number
+): ScoreResult['label'] {
+  if (percentage >= 80) return 'Excellent';
+  if (percentage >= 60) return 'Good';
+  if (percentage >= 40) return 'Moderate';
+  return 'Poor';
+}
+
 /**
- * Runs the deterministic engine. Missing factors are dropped and the remaining
- * weights are renormalized so the overall score stays on a true 0-1 basis.
- * When no factor has data, the overall score is 0 with grade D.
+ * Runs the deterministic engine with fixed weights. Critical missing factors
+ * contribute 0; non-critical missing factors contribute an explicit neutral
+ * 0.5. Missing critical forecast inputs also cap the headline score.
  */
-export function computeScore(marine: MarineConditions): ScoreResult {
+export function computeScore(
+  marine: MarineConditions,
+  integrity: ForecastIntegrity = assessForecastIntegrity(marine)
+): ScoreResult {
   const raw = ENABLED_FACTORS.map((key) => ({
     key,
     score: rawFactorScore(key, marine),
   }));
 
-  const available = raw.filter(
-    (f): f is { key: FactorKey; score: number } => f.score !== null
-  );
-  const totalWeight = available.reduce(
-    (sum, f) => sum + FACTOR_WEIGHTS[f.key],
-    0
-  );
-
   const factors: FactorScore[] = raw.map(({ key, score }) => {
     const unavailable = score === null;
-    const weight =
-      unavailable || totalWeight === 0
+    const appliedScore =
+      score ??
+      (CRITICAL_SCORE_FACTORS.has(key)
         ? 0
-        : FACTOR_WEIGHTS[key] / totalWeight;
+        : NON_CRITICAL_MISSING_SCORE);
     return {
       key,
       label: FACTOR_LABELS[key],
       score,
-      weight,
+      weight: FACTOR_WEIGHTS[key],
+      appliedScore,
       explanation: explainFactor(key, score, marine),
       unavailable,
     };
   });
 
-  const overall01 =
-    totalWeight === 0
-      ? 0
-      : available.reduce(
-          (sum, f) => sum + f.score * (FACTOR_WEIGHTS[f.key] / totalWeight),
+  const hasAnyMeasuredFactor = raw.some((factor) => factor.score !== null);
+  const rawPercentage = hasAnyMeasuredFactor
+    ? Math.round(
+        factors.reduce(
+          (sum, factor) => sum + factor.appliedScore * factor.weight,
           0
-        );
-
-  const percentage = Math.round(overall01 * 100);
-  const overallScore = Math.round(overall01 * 100) / 10;
+        ) * 100
+      )
+    : 0;
+  const criticalMissingCount = integrity.missingCriticalInputs.length;
+  const cap =
+    criticalMissingCount >= 2
+      ? 59
+      : criticalMissingCount === 1
+        ? 79
+        : 100;
+  const percentage = Math.min(rawPercentage, cap);
+  const overallScore = Math.round(percentage) / 10;
 
   return {
     overallScore,
     percentage,
     grade: gradeFor(percentage),
+    label: scoreLabelFor(percentage),
     factors,
     computedAt: marine.generatedAt,
+    integrity,
+    missingDataPolicy: 'fixed-weights-conservative-v1',
   };
 }

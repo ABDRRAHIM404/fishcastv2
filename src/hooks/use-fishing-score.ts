@@ -1,12 +1,12 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import type { ScoreResult } from '@/lib/scoring/types';
+import type { CurrentForecastResult } from '@/lib/forecast/evaluate';
 
 type State =
   | { status: 'loading' }
   | { status: 'error'; message: string }
-  | { status: 'ready'; data: ScoreResult };
+  | { status: 'ready'; data: CurrentForecastResult };
 
 /**
  * Client hook that fetches the deterministic fishing score for a spot from
@@ -24,7 +24,7 @@ export function useFishingScore(spotId: string) {
         { cache: 'no-store' }
       );
       if (!res.ok) throw new Error(`Request failed (${res.status})`);
-      const data = (await res.json()) as ScoreResult;
+      const data = (await res.json()) as CurrentForecastResult;
       setState({ status: 'ready', data });
     } catch (err) {
       setState({

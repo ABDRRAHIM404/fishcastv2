@@ -1,4 +1,5 @@
 import type { Enums } from '@/lib/supabase/types';
+import { productMonth } from '@/lib/time/casablanca';
 
 /** Prevalence enum derived from the generated Supabase schema (source of truth). */
 export type Prevalence = Enums<'prevalence'>;
@@ -94,7 +95,7 @@ export function formatSeasonMonths(months: number[]): string | null {
  */
 export function isInSeason(
   months: number[],
-  month: number = new Date().getMonth() + 1
+  month: number = productMonth()
 ): boolean {
   return months.some((m) => m === month);
 }

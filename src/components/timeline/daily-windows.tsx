@@ -3,13 +3,14 @@
 import { Badge } from '@/components/ui/badge';
 import { WINDOW_BADGE } from '@/components/timeline/window-colors';
 import type { DailyFishingWindows, FishingWindow } from '@/lib/timeline/types';
-import { formatDaySectionLabel, formatWindowLabel } from '@/lib/timeline/format';
+import {
+  formatDaySectionLabel,
+  formatTimeLabel,
+  formatWindowLabel,
+} from '@/lib/timeline/format';
 
 function formatTime(iso: string): string {
-  return new Date(iso).toLocaleTimeString([], {
-    hour: '2-digit',
-    minute: '2-digit',
-  });
+  return formatTimeLabel(iso);
 }
 
 function renderWindow(window: FishingWindow, index: number) {
@@ -25,7 +26,8 @@ function renderWindow(window: FishingWindow, index: number) {
         </span>
       </div>
       <span className="text-sm text-muted-foreground">
-        Peak {window.peakScore.toFixed(1)} at {formatTime(window.peakTime)}
+        Peak {window.peakScore.toFixed(1)} at {formatTime(window.peakTime)} ·{' '}
+        {window.safetyStatus} · {window.confidence} confidence
       </span>
     </li>
   );
@@ -35,7 +37,7 @@ export function DailyWindows({ dailyWindows }: { dailyWindows: DailyFishingWindo
   if (dailyWindows.length === 0) {
     return (
       <div className="rounded-lg border border-dashed border-border/60 px-4 py-6 text-center text-sm text-muted-foreground">
-        No favorable fishing windows available.
+        No recommended window available.
       </div>
     );
   }
@@ -43,8 +45,6 @@ export function DailyWindows({ dailyWindows }: { dailyWindows: DailyFishingWindo
   return (
     <div className="space-y-4">
       {dailyWindows.map((day) => {
-        const excellent = day.windows.filter((w) => w.label === 'Excellent');
-        const fallback = excellent.length > 0 ? excellent : [day.windows[0]!].filter(Boolean);
         return (
           <div key={day.date} className="rounded-3xl border border-border/60 bg-background/50 p-4">
             <div className="mb-3 flex items-center justify-between gap-4">
@@ -58,19 +58,15 @@ export function DailyWindows({ dailyWindows }: { dailyWindows: DailyFishingWindo
                 {day.date}
               </span>
             </div>
-            {fallback.length === 0 ? (
+            {day.windows.length === 0 ? (
               <div className="rounded-lg border border-dashed border-border/60 px-4 py-6 text-center text-sm text-muted-foreground">
-                No fishing windows available for this day.
+                No recommended window for this day. Poor, Dangerous, Unknown,
+                or insufficient-confidence periods are not promoted.
               </div>
             ) : (
-              <>
-                {excellent.length === 0 ? (
-                  <div className="mb-3 rounded-lg border border-border/60 bg-muted/10 px-4 py-3 text-sm text-muted-foreground">
-                    No Excellent windows detected. Showing the best available window.
-                  </div>
-                ) : null}
-                <ul className="space-y-2">{fallback.map(renderWindow)}</ul>
-              </>
+              <ul className="space-y-2">
+                {day.windows.map(renderWindow)}
+              </ul>
             )}
           </div>
         );

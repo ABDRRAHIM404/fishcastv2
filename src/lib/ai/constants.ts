@@ -10,7 +10,7 @@ import 'server-only';
  * Bump when the prompt or context contract changes; included in the cache key
  * so stale recommendations are invalidated cleanly.
  */
-export const PROMPT_VERSION = 'v1';
+export const PROMPT_VERSION = 'v2-safety';
 
 /** Prefer Gemini 2.5 Flash; falls back to the latest stable Flash model. */
 export const GEMINI_MODEL = 'gemini-2.5-flash';

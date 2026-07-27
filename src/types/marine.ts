@@ -37,6 +37,8 @@ export interface WeatherConditions {
   pressureTrendMbPerHr: number | null;
   /** Open-Meteo WMO weather code, kept for a future icon mapping. */
   weatherCode: number | null;
+  /** Horizontal visibility in metres. */
+  visibilityM: number | null;
 }
 
 export interface WindConditions {
@@ -58,6 +60,35 @@ export interface WaveConditions {
   swellHeightM: number | null;
   swellPeriodS: number | null;
   swellDirectionDeg: number | null;
+  secondarySwellHeightM: number | null;
+  secondarySwellPeriodS: number | null;
+  secondarySwellDirectionDeg: number | null;
+  seaSurfaceTemperatureC: number | null;
+  /** Current speed including modelled Eulerian, wave and tide effects. */
+  oceanCurrentVelocityKmh: number | null;
+  /** Direction the current is heading towards (unlike wave "coming from"). */
+  oceanCurrentDirectionDeg: number | null;
+  derived: WaveDerivedMetrics;
+}
+
+export type SeaState =
+  | 'calm'
+  | 'slight'
+  | 'moderate'
+  | 'rough'
+  | 'very-rough'
+  | 'unknown';
+
+export interface WaveDerivedMetrics {
+  /** Deep-water estimate L = gT²/(2π); not navigation-grade. */
+  estimatedWavelengthM: number | null;
+  /** Estimated significant-wave steepness H/L. */
+  estimatedSteepness: number | null;
+  /** Approximate deep-water wave-power indicator in kW per metre of crest. */
+  estimatedPowerKwPerM: number | null;
+  seaState: SeaState;
+  crossingSwell: boolean | null;
+  crossingAngleDeg: number | null;
 }
 
 export type TideState = 'high' | 'low';
@@ -97,10 +128,21 @@ export interface TideConditions {
   minutesToNextExtreme: number | null;
   /** Max minus min hourly modelled sea level for the local calendar day. */
   dailyRangeM: number | null;
+  /** Centered modelled rate of change at observedAt. */
+  rateMPerHour: number | null;
+  /** Whole minutes since the previous detected turning point. */
+  minutesSincePreviousExtreme: number | null;
 }
 
 export interface AstronomyConditions {
   observedAt: string;
+  source: 'calculated-noaa';
+  sunrise: string | null;
+  sunset: string | null;
+  civilDawn: string | null;
+  civilDusk: string | null;
+  daylightState: 'daylight' | 'civil-twilight' | 'night' | 'unknown';
+  isDaylight: boolean | null;
   /** Normalized moon phase [0=New, 0.5=Full, 1=New]. */
   moonPhase: number | null;
   /** Moon illumination as a percentage [0-100]. */

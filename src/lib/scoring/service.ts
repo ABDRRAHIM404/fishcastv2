@@ -1,8 +1,11 @@
 import 'server-only';
-import { getMarineConditionsForSpot, type MarineSpotInput } from '@/lib/marine/service';
-import { computeScore } from '@/lib/scoring/engine';
+import { getMarineConditionsForSpot } from '@/lib/marine/service';
+import {
+  evaluateForecast,
+  type CurrentForecastResult,
+  type ForecastEvaluationSpot,
+} from '@/lib/forecast/evaluate';
 import { readScoreCache, writeScoreCache } from '@/lib/scoring/cache';
-import type { ScoreResult } from '@/lib/scoring/types';
 
 /**
  * Cache-aware score resolver for a spot. Returns a fresh cached score when
@@ -10,13 +13,13 @@ import type { ScoreResult } from '@/lib/scoring/types';
  * deterministic engine, caches the result, and returns it.
  */
 export async function getScoreForSpot(
-  spot: MarineSpotInput
-): Promise<ScoreResult> {
+  spot: ForecastEvaluationSpot
+): Promise<CurrentForecastResult> {
   const cached = await readScoreCache(spot.id);
   if (cached) return cached;
 
   const marine = await getMarineConditionsForSpot(spot);
-  const result = computeScore(marine);
+  const result = evaluateForecast(marine, spot);
   await writeScoreCache(spot.id, result);
   return result;
 }

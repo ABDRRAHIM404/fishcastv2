@@ -30,27 +30,39 @@ const VERDICT_PHRASE: Record<AiVerdict, string> = {
 export function buildFallbackRecommendation(
   context: AiContext
 ): AiRecommendation {
-  const verdict = verdictFromGrade(context.score.grade, context.score.value);
+  const safetyBlocks =
+    context.safety.status === 'Dangerous' ||
+    context.safety.status === 'Unknown';
+  const verdict = safetyBlocks
+    ? 'poor'
+    : verdictFromGrade(context.score.grade, context.score.value);
 
   const sentences: string[] = [
-    `${VERDICT_PHRASE[verdict]} at ${context.spot.name} (score ${context.score.value.toFixed(
-      1
-    )}/10).`,
+    context.safety.status === 'Dangerous'
+      ? `Safety is Dangerous at ${context.spot.name}. Do not fish during these conditions.`
+      : context.safety.status === 'Unknown'
+        ? `Safety is Unknown at ${context.spot.name} because critical inputs are missing. Do not treat the fishing score as a go-fishing recommendation.`
+        : `${VERDICT_PHRASE[verdict]} at ${context.spot.name} (score ${context.score.value.toFixed(
+            1
+          )}/10).`,
   ];
 
   const topFactor = context.score.topFactors[0];
-  if (topFactor) {
+  if (context.safety.status === 'Caution') {
+    sentences.push('Safety status is Caution; review every warning.');
+  }
+  if (!safetyBlocks && topFactor) {
     sentences.push(`${topFactor.label} is the strongest factor right now.`);
   }
 
-  const bestWindow = context.bestWindows[0] ?? null;
+  const bestWindow = safetyBlocks ? null : context.bestWindows[0] ?? null;
   const windowStr = bestWindow ? `${bestWindow.start}\u2013${bestWindow.end}` : null;
   if (windowStr) {
     sentences.push(`Best window: ${windowStr}.`);
   }
 
   const favored = context.activeSpecies.filter((s) => s.favoredNow);
-  if (favored.length > 0 && favored[0]) {
+  if (!safetyBlocks && favored.length > 0 && favored[0]) {
     sentences.push(`${favored[0].commonName} is favored by current conditions.`);
   }
 
@@ -58,6 +70,6 @@ export function buildFallbackRecommendation(
     verdict,
     summary: sentences.join(' '),
     bestWindow: windowStr,
-    confidence: 'medium',
+    confidence: context.integrity.confidence,
   };
 }

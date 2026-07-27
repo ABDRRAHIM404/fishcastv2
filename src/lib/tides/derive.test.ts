@@ -4,7 +4,9 @@ import {
   detectModelledTideExtremes,
   modelledDailyTidalRange,
   modelledTideHeightAt,
+  modelledTideRateAt,
   modelledTideTrendAt,
+  openMeteoTimeToIso,
   toModelledSeaLevelPoints,
 } from '@/lib/tides/derive';
 import type { ModelledSeaLevelPoint } from '@/types/marine';
@@ -80,6 +82,17 @@ describe('modelled tide extremes', () => {
     expect(result?.minutesToNextExtreme).toBe(90);
   });
 
+  it('calculates rate and time since the previous extreme', () => {
+    const result = deriveModelledTideConditions(
+      points,
+      new Date('2026-06-14T03:00:00.000Z')
+    );
+    expect(
+      modelledTideRateAt(points, START_MS + 60 * 60 * 1000)
+    ).toBeCloseTo(1.125, 6);
+    expect(result?.minutesSincePreviousExtreme).toBe(60);
+  });
+
   it('calculates the daily range from native hourly points', () => {
     expect(
       modelledDailyTidalRange(
@@ -122,6 +135,12 @@ describe('modelled tide source handling and interpolation', () => {
         heightM: 0.2,
       },
     ]);
+  });
+
+  it('treats Unix provider timestamps as absolute instants', () => {
+    expect(openMeteoTimeToIso(1_781_434_800, 3600)).toBe(
+      '2026-06-14T11:00:00.000Z'
+    );
   });
 
   it('keeps a single valid point but cannot infer trend or daily range', () => {

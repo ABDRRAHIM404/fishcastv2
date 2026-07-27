@@ -4,6 +4,9 @@ import {
   linearAt,
   circularAt,
   monotoneCubicAt,
+  linearWithinAt,
+  circularWithinAt,
+  monotoneCubicWithinAt,
 } from '@/lib/timeline/interpolate';
 
 const t0 = '2026-06-14T00:00:00.000Z';
@@ -12,8 +15,11 @@ const t2 = '2026-06-14T02:00:00.000Z';
 const ms = (s: string) => new Date(s).getTime();
 
 describe('toSamples', () => {
-  it('drops nulls/NaN and sorts by time', () => {
-    const s = toSamples([t2, t0, t1], [2, null, 1]);
+  it('drops nulls/non-finite values and sorts by time', () => {
+    const s = toSamples(
+      [t2, t0, t1, '2026-06-14T03:00:00.000Z'],
+      [2, null, 1, Number.POSITIVE_INFINITY]
+    );
     expect(s.map((x) => x.value)).toEqual([1, 2]);
     expect(s[0]!.ms).toBeLessThan(s[1]!.ms);
   });
@@ -66,5 +72,26 @@ describe('monotoneCubicAt', () => {
   it('falls back to linear with two samples', () => {
     const s = toSamples([t0, t1], [0, 10]);
     expect(monotoneCubicAt(s, ms('2026-06-14T00:30:00.000Z'))).toBeCloseTo(5, 6);
+  });
+});
+
+describe('bounded timeline interpolation', () => {
+  it('does not extrapolate provider values outside their source range', () => {
+    const samples = toSamples([t0, t1], [4, 8]);
+    const before = ms('2026-06-13T23:00:00.000Z');
+    const after = ms('2026-06-14T02:00:00.000Z');
+    expect(linearWithinAt(samples, before)).toBeNull();
+    expect(circularWithinAt(samples, after)).toBeNull();
+    expect(monotoneCubicWithinAt(samples, after)).toBeNull();
+  });
+
+  it('keeps native anchors and interior interpolated values available', () => {
+    const samples = toSamples([t0, t1], [350, 10]);
+    expect(linearWithinAt(samples, ms(t0))).toBe(350);
+    const direction = circularWithinAt(
+      samples,
+      ms('2026-06-14T00:30:00.000Z')
+    )!;
+    expect(Math.min(direction, 360 - direction)).toBeLessThan(1);
   });
 });

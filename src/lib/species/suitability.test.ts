@@ -1,14 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import {
-  evaluateSuitability,
-  timeOfDayBucket,
-} from '@/lib/species/suitability';
+import { evaluateSuitability } from '@/lib/species/suitability';
 import type { PreferredConditions } from '@/types/species';
 import type { MarineConditions } from '@/types/marine';
+import { deriveWaveMetrics } from '@/lib/waves/derived';
 
 const ISO = '2026-06-14T06:30:00.000Z';
-const DAWN = new Date('2026-06-14T06:30:00');
-const MIDDAY = new Date('2026-06-14T13:00:00');
+const DAWN = new Date('2026-06-14T06:30:00.000Z');
+const MIDDAY = new Date('2026-06-14T13:00:00.000Z');
 
 function marine(overrides?: {
   windKmh?: number | null;
@@ -52,6 +50,20 @@ function marine(overrides?: {
               swellHeightM: null,
               swellPeriodS: null,
               swellDirectionDeg: null,
+              secondarySwellHeightM: null,
+              secondarySwellPeriodS: null,
+              secondarySwellDirectionDeg: null,
+              seaSurfaceTemperatureC: null,
+              oceanCurrentVelocityKmh: null,
+              oceanCurrentDirectionDeg: null,
+              derived: deriveWaveMetrics({
+                waveHeightM: o.waveM ?? 0.5,
+                wavePeriodS: null,
+                swellHeightM: null,
+                swellDirectionDeg: null,
+                secondarySwellHeightM: null,
+                secondarySwellDirectionDeg: null,
+              }),
             },
           },
     tide:
@@ -72,20 +84,30 @@ function marine(overrides?: {
                 : [],
               minutesToNextExtreme: o.nextExtreme ? 0 : null,
               dailyRangeM: 1.2,
+              rateMPerHour: 0.2,
+              minutesSincePreviousExtreme: 120,
             },
           },
+    astronomy: {
+      status: 'ok',
+      cachedAt: ISO,
+      data: {
+        observedAt: ISO,
+        source: 'calculated-noaa',
+        sunrise: '2026-06-14T07:00:00.000Z',
+        sunset: '2026-06-14T19:00:00.000Z',
+        civilDawn: '2026-06-14T06:00:00.000Z',
+        civilDusk: '2026-06-14T20:00:00.000Z',
+        daylightState: 'civil-twilight',
+        isDaylight: false,
+        moonPhase: null,
+        moonIlluminationPct: null,
+        moonTransitScore: null,
+        timeOfDayScore: null,
+      },
+    },
   };
 }
-
-describe('timeOfDayBucket', () => {
-  it('maps hours to buckets', () => {
-    expect(timeOfDayBucket(6)).toBe('dawn');
-    expect(timeOfDayBucket(9)).toBe('morning');
-    expect(timeOfDayBucket(13)).toBe('midday');
-    expect(timeOfDayBucket(17)).toBe('dusk');
-    expect(timeOfDayBucket(23)).toBe('night');
-  });
-});
 
 describe('evaluateSuitability', () => {
   it('returns not favored for null preferred_conditions', () => {

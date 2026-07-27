@@ -72,6 +72,20 @@ export interface AiContextScore {
   topFactors: AiContextFactor[];
 }
 
+export interface AiContextSafety {
+  status: 'Safe' | 'Caution' | 'Dangerous' | 'Unknown';
+  warnings: string[];
+  criticalWarnings: string[];
+}
+
+export interface AiContextIntegrity {
+  completenessPercentage: number;
+  confidence: AiConfidence;
+  missingInputs: string[];
+  missingCriticalInputs: string[];
+  forecastAgeMinutes: number | null;
+}
+
 export interface AiContextWindow {
   start: string;
   end: string;
@@ -93,6 +107,8 @@ export interface AiContext {
   spot: AiContextSpot;
   conditions: AiContextConditions;
   score: AiContextScore;
+  safety: AiContextSafety;
+  integrity: AiContextIntegrity;
   bestWindows: AiContextWindow[];
   activeSpecies: AiContextSpecies[];
   meta: {

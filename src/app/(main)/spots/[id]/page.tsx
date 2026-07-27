@@ -21,6 +21,7 @@ import { getMarineConditionsForSpot } from '@/lib/marine/service';
 import { evaluateSuitability } from '@/lib/species/suitability';
 import { isInSeason } from '@/types/species';
 import { SPOT_TYPE_LABELS, DIFFICULTY_LABELS } from '@/types/spot';
+import { productMonth } from '@/lib/time/casablanca';
 
 // The dynamic segment is the spot slug (route folder name kept as [id]).
 export async function generateMetadata({
@@ -77,7 +78,7 @@ export default async function SpotDetailsPage({
 
   // Per-species presentation flags: "in season" (current month) and
   // "favored now" (pure suitability engine against current conditions).
-  const currentMonth = new Date().getMonth() + 1;
+  const currentMonth = productMonth();
   const preferredById = new Map(
     catalog.map((c) => [c.id, c.preferredConditions])
   );

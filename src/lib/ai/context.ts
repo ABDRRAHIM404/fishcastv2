@@ -1,6 +1,8 @@
 import 'server-only';
 import type { MarineConditions } from '@/types/marine';
 import type { ScoreResult } from '@/lib/scoring/types';
+import type { SafetyResult } from '@/lib/safety/types';
+import type { ForecastIntegrity } from '@/types/forecast';
 import type { Timeline } from '@/lib/timeline/types';
 import type { SpotSpecies, PreferredConditions } from '@/types/species';
 import { evaluateSuitability } from '@/lib/species/suitability';
@@ -13,6 +15,8 @@ import type {
   AiContextWindow,
   AiContextSpecies,
 } from '@/lib/ai/types';
+import { formatTimeLabel } from '@/lib/timeline/format';
+import { productMonth } from '@/lib/time/casablanca';
 
 /** Minimal spot fields needed for the AI context (no free-text content). */
 export interface AiContextSpotInput {
@@ -25,6 +29,8 @@ export interface BuildAiContextInput {
   spot: AiContextSpotInput;
   marine: MarineConditions;
   score: ScoreResult;
+  safety: SafetyResult;
+  integrity: ForecastIntegrity;
   timeline: Timeline | null;
   species: SpotSpecies[];
   /** Map of species id -> preferred conditions (from the catalog). */
@@ -66,12 +72,11 @@ function topFactorsFrom(score: ScoreResult): AiContextFactor[] {
 function windowsFrom(timeline: Timeline | null): AiContextWindow[] {
   if (!timeline) return [];
   return timeline.windows
-    .filter((w) => w.label !== 'Poor')
     .slice(0, 3)
     .map((w) => ({
       // Use HH:MM only (the payload is region/day-scoped already).
-      start: w.start.slice(11, 16),
-      end: w.end.slice(11, 16),
+      start: formatTimeLabel(w.start),
+      end: formatTimeLabel(w.end),
       label: w.label,
       peakScore: w.peakScore,
     }));
@@ -83,9 +88,18 @@ function windowsFrom(timeline: Timeline | null): AiContextWindow[] {
  * — no descriptions, species notes, community reports, or user content.
  */
 export function buildAiContext(input: BuildAiContextInput): AiContext {
-  const { spot, marine, score, timeline, species, preferredById } = input;
+  const {
+    spot,
+    marine,
+    score,
+    safety,
+    integrity,
+    timeline,
+    species,
+    preferredById,
+  } = input;
   const now = input.now ?? new Date();
-  const month = now.getMonth() + 1;
+  const month = productMonth(now);
 
   const activeSpecies: AiContextSpecies[] = species.map((s) => {
     const pc = preferredById.get(s.id) ?? null;
@@ -109,6 +123,20 @@ export function buildAiContext(input: BuildAiContextInput): AiContext {
       grade: score.grade,
       topFactors: topFactorsFrom(score),
     },
+    safety: {
+      status: safety.status,
+      warnings: safety.warnings.map((warning) => warning.message),
+      criticalWarnings: safety.criticalWarnings.map(
+        (warning) => warning.message
+      ),
+    },
+    integrity: {
+      completenessPercentage: integrity.completenessPercentage,
+      confidence: integrity.confidence,
+      missingInputs: integrity.missingInputs,
+      missingCriticalInputs: integrity.missingCriticalInputs,
+      forecastAgeMinutes: integrity.forecastAgeMinutes,
+    },
     bestWindows: windowsFrom(timeline),
     activeSpecies,
     meta: {
@@ -129,6 +157,8 @@ export function hashAiContext(context: AiContext): string {
     spot: context.spot,
     conditions: context.conditions,
     score: context.score,
+    safety: context.safety,
+    integrity: context.integrity,
     bestWindows: context.bestWindows,
     activeSpecies: context.activeSpecies,
     promptVersion: context.meta.promptVersion,

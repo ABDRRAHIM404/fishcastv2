@@ -33,8 +33,12 @@ export async function GET(request: Request) {
   try {
     const result = await getScoreForSpot({
       id: spot.id,
+      slug: spot.slug,
       latitude: spot.latitude,
       longitude: spot.longitude,
+      spotType: spot.spotType,
+      difficultyLevel: spot.difficultyLevel,
+      difficultyFactors: spot.difficultyFactors,
     });
     return NextResponse.json(result);
   } catch {

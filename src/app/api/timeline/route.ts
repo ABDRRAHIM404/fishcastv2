@@ -1,10 +1,9 @@
 import { NextResponse } from 'next/server';
 import { getActiveSpots, getSpotBySlug } from '@/lib/spots/queries';
 import { getTimelineForSpot, todayLocalDate } from '@/lib/timeline/service';
+import { isProductDate } from '@/lib/time/casablanca';
 
 export const dynamic = 'force-dynamic';
-
-const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 /**
  * GET /api/timeline?spotId=<id-or-slug>&date=YYYY-MM-DD
@@ -22,7 +21,7 @@ export async function GET(request: Request) {
       { status: 400 }
     );
   }
-  if (dateParam && !DATE_RE.test(dateParam)) {
+  if (dateParam && !isProductDate(dateParam)) {
     return NextResponse.json(
       { error: 'Invalid date; expected YYYY-MM-DD' },
       { status: 400 }
@@ -41,7 +40,15 @@ export async function GET(request: Request) {
   const date = dateParam ?? todayLocalDate();
   try {
     const timeline = await getTimelineForSpot(
-      { id: spot.id, latitude: spot.latitude, longitude: spot.longitude },
+      {
+        id: spot.id,
+        slug: spot.slug,
+        latitude: spot.latitude,
+        longitude: spot.longitude,
+        spotType: spot.spotType,
+        difficultyLevel: spot.difficultyLevel,
+        difficultyFactors: spot.difficultyFactors,
+      },
       date
     );
     return NextResponse.json(timeline);

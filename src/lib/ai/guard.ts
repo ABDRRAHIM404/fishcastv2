@@ -26,6 +26,8 @@ function collectAllowedNumbers(context: AiContext): Set<string> {
   add(c.cloudCoverPct);
   add(c.precipitationMm);
   add(context.score.value);
+  add(context.integrity.completenessPercentage);
+  add(context.integrity.forecastAgeMinutes);
   context.score.topFactors.forEach((f) => add(f.score));
   context.bestWindows.forEach((w) => {
     add(w.peakScore);
@@ -35,6 +37,58 @@ function collectAllowedNumbers(context: AiContext): Set<string> {
     });
   });
   return allowed;
+}
+
+function normalizeWindow(value: string): string {
+  return value.replace(/\s/g, '').replace(/-/g, '\u2013');
+}
+
+function windowIsGrounded(
+  recommendation: AiRecommendation,
+  context: AiContext
+): boolean {
+  if (recommendation.bestWindow === null) return true;
+  const supplied = context.bestWindows.map((window) =>
+    normalizeWindow(`${window.start}\u2013${window.end}`)
+  );
+  return supplied.includes(normalizeWindow(recommendation.bestWindow));
+}
+
+function safetyIsGrounded(
+  recommendation: AiRecommendation,
+  context: AiContext
+): boolean {
+  if (context.safety.status === 'Dangerous') {
+    const lower = recommendation.summary.toLowerCase();
+    const positiveRecommendation =
+      /go fishing|fish now|safe to fish|recommended to fish|conditions (?:look )?(?:excellent|good)/.test(
+        lower
+      );
+    return (
+      recommendation.verdict === 'poor' &&
+      recommendation.bestWindow === null &&
+      !positiveRecommendation
+    );
+  }
+  if (context.safety.status === 'Unknown') {
+    const lower = recommendation.summary.toLowerCase();
+    return (
+      recommendation.verdict !== 'excellent' &&
+      recommendation.bestWindow === null &&
+      !/go fishing|fish now|safe to fish|recommended to fish/.test(lower)
+    );
+  }
+  return true;
+}
+
+function confidenceIsGrounded(
+  recommendation: AiRecommendation,
+  context: AiContext
+): boolean {
+  const rank = { low: 1, medium: 2, high: 3 } as const;
+  return (
+    rank[recommendation.confidence] <= rank[context.integrity.confidence]
+  );
 }
 
 /** Returns true when the summary only uses numbers present in the context. */
@@ -69,6 +123,9 @@ export function isRecommendationGrounded(
 ): boolean {
   return (
     numbersAreGrounded(rec.summary, context) &&
-    locationsAreGrounded(rec.summary)
+    locationsAreGrounded(rec.summary) &&
+    windowIsGrounded(rec, context) &&
+    safetyIsGrounded(rec, context) &&
+    confidenceIsGrounded(rec, context)
   );
 }

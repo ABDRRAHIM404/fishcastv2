@@ -4,13 +4,13 @@ import { Badge } from '@/components/ui/badge';
 import { WINDOW_BADGE } from '@/components/timeline/window-colors';
 import type { FishingWindow } from '@/lib/timeline/types';
 
-import { formatWindowLabel } from '@/lib/timeline/format';
+import {
+  formatTimeLabel,
+  formatWindowLabel,
+} from '@/lib/timeline/format';
 
 function time(iso: string): string {
-  return new Date(iso).toLocaleTimeString([], {
-    hour: '2-digit',
-    minute: '2-digit',
-  });
+  return formatTimeLabel(iso);
 }
 
 /**
@@ -18,12 +18,12 @@ function time(iso: string): string {
  * "when should I fish today?" Display only.
  */
 export function BestWindows({ windows }: { windows: FishingWindow[] }) {
-  const ranked = windows.filter((w) => w.label !== 'Poor');
+  const ranked = windows;
 
   if (ranked.length === 0) {
     return (
       <div className="rounded-lg border border-dashed border-border/60 px-4 py-6 text-center text-sm text-muted-foreground">
-        No favorable fishing windows for this day.
+        No recommended window for this day.
       </div>
     );
   }
@@ -42,7 +42,8 @@ export function BestWindows({ windows }: { windows: FishingWindow[] }) {
             </span>
           </div>
           <span className="text-sm text-muted-foreground">
-            Peak {w.peakScore.toFixed(1)} at {time(w.peakTime)}
+            Peak {w.peakScore.toFixed(1)} at {time(w.peakTime)} ·{' '}
+            {w.safetyStatus} · {w.confidence} confidence
           </span>
         </li>
       ))}

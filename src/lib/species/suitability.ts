@@ -14,19 +14,40 @@
  */
 import type { PreferredConditions } from '@/types/species';
 import type { MarineConditions } from '@/types/marine';
+import { daylightStateAt } from '@/lib/daylight/solar';
 
 export interface SuitabilityResult {
   favored: boolean;
   reason: string | null;
 }
 
-/** Derives a coarse time-of-day bucket from an hour (local). */
-export function timeOfDayBucket(hour: number): string {
-  if (hour >= 5 && hour < 8) return 'dawn';
-  if (hour >= 8 && hour < 11) return 'morning';
-  if (hour >= 11 && hour < 16) return 'midday';
-  if (hour >= 16 && hour < 19) return 'dusk';
-  return 'night';
+function calculatedTimeOfDayBucket(
+  marine: MarineConditions,
+  now: Date
+): string | null {
+  if (marine.astronomy?.status !== 'ok') return null;
+  const astronomy = marine.astronomy.data;
+  const daylightState = daylightStateAt(now, astronomy);
+  if (daylightState === 'night') return 'night';
+  if (
+    daylightState === 'unknown' ||
+    !astronomy.sunrise ||
+    !astronomy.sunset
+  ) {
+    return null;
+  }
+  const nowMs = now.getTime();
+  const sunriseMs = new Date(astronomy.sunrise).getTime();
+  const sunsetMs = new Date(astronomy.sunset).getTime();
+  if (daylightState === 'civil-twilight') {
+    return nowMs < sunriseMs ? 'dawn' : 'dusk';
+  }
+  const daylightDuration = sunsetMs - sunriseMs;
+  const progress =
+    daylightDuration > 0 ? (nowMs - sunriseMs) / daylightDuration : 0.5;
+  if (progress <= 0.25) return 'morning';
+  if (progress >= 0.8) return 'dusk';
+  return 'midday';
 }
 
 /**
@@ -88,9 +109,11 @@ export function evaluateSuitability(
   // Time of day
   if (Array.isArray(pc.time_of_day) && pc.time_of_day.length > 0) {
     constraints++;
-    const bucket = timeOfDayBucket(now.getHours());
-    const met = pc.time_of_day.map((t) => t.toLowerCase()).includes(bucket);
-    if (met) reasons.push(bucket);
+    const bucket = calculatedTimeOfDayBucket(marine, now);
+    const met =
+      bucket !== null &&
+      pc.time_of_day.map((t) => t.toLowerCase()).includes(bucket);
+    if (met && bucket) reasons.push(bucket);
     else allMet = false;
   }
 

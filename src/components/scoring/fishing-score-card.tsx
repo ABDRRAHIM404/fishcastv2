@@ -1,7 +1,7 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { Gauge } from 'lucide-react';
+import { AlertTriangle, Gauge, ShieldAlert } from 'lucide-react';
 import { PremiumCard } from '@/components/spot/premium-card';
 import { Badge } from '@/components/ui/badge';
 import { ScoreRing } from '@/components/scoring/score-ring';
@@ -9,6 +9,7 @@ import { staggerContainer, fadeInUp } from '@/components/shared/motion';
 import { useFishingScore } from '@/hooks/use-fishing-score';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { FactorScore } from '@/lib/scoring/types';
+import type { SafetyStatus } from '@/lib/safety/types';
 
 function gradeVariant(
   grade: string
@@ -42,6 +43,16 @@ function FactorRow({ factor }: { factor: FactorScore }) {
   );
 }
 
+const SAFETY_VARIANT: Record<
+  SafetyStatus,
+  'good' | 'moderate' | 'poor' | 'outline'
+> = {
+  Safe: 'good',
+  Caution: 'moderate',
+  Dangerous: 'poor',
+  Unknown: 'outline',
+};
+
 /**
  * Fishing Score Card for the spot details page. Fetches the deterministic
  * score via /api/score and renders the score ring, grade badge, and per-factor
@@ -71,27 +82,93 @@ export function FishingScoreCard({ spotId }: { spotId: string }) {
           Fishing score is unavailable right now.
         </p>
       ) : (
-        <div className="mt-4 flex flex-col items-center gap-6 sm:flex-row sm:items-start">
-          <div className="flex flex-col items-center gap-3">
-            <ScoreRing
-              score={state.data.overallScore}
-              percentage={state.data.percentage}
-            />
-            <Badge variant={gradeVariant(state.data.grade)}>
-              Grade {state.data.grade}
-            </Badge>
+        <div className="mt-4 space-y-5">
+          <div className="rounded-lg border border-border/60 p-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <ShieldAlert className="size-5 text-primary" aria-hidden />
+              <span className="font-medium">Safety</span>
+              <Badge variant={SAFETY_VARIANT[state.data.safety.status]}>
+                {state.data.safety.status}
+              </Badge>
+              <span className="text-sm text-muted-foreground">
+                {state.data.integrity.confidence} confidence ·{' '}
+                {state.data.integrity.completenessPercentage}% complete
+              </span>
+            </div>
+            <p className="mt-2 text-sm text-muted-foreground">
+              {state.data.safety.explanation}
+            </p>
+            {state.data.safety.limitations[0] ? (
+              <p className="mt-2 text-caption text-muted-foreground">
+                Location-model limitation:{' '}
+                {state.data.safety.limitations[0]}
+              </p>
+            ) : null}
+            {state.data.safety.criticalWarnings.length > 0 ? (
+              <ul className="mt-3 space-y-2 text-sm text-condition-poor">
+                {state.data.safety.criticalWarnings.map((warning) => (
+                  <li key={warning.code} className="flex gap-2">
+                    <AlertTriangle
+                      className="mt-0.5 size-4 shrink-0"
+                      aria-hidden
+                    />
+                    {warning.message}
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+            {state.data.safety.warnings.some(
+              (warning) => warning.severity === 'warning'
+            ) ? (
+              <ul className="mt-3 space-y-2 text-sm text-condition-moderate">
+                {state.data.safety.warnings
+                  .filter((warning) => warning.severity === 'warning')
+                  .map((warning) => (
+                    <li key={warning.code} className="flex gap-2">
+                      <AlertTriangle
+                        className="mt-0.5 size-4 shrink-0"
+                        aria-hidden
+                      />
+                      {warning.message}
+                    </li>
+                  ))}
+              </ul>
+            ) : null}
+            {state.data.integrity.missingInputs.length > 0 ? (
+              <p className="mt-3 text-sm text-condition-moderate">
+                Missing data:{' '}
+                {state.data.integrity.missingInputs.join(', ')}. Missing
+                values are not treated as favourable.
+              </p>
+            ) : null}
           </div>
 
-          <motion.div
-            variants={staggerContainer}
-            initial="hidden"
-            animate="show"
-            className="w-full space-y-4"
-          >
-            {state.data.factors.map((factor) => (
-              <FactorRow key={factor.key} factor={factor} />
-            ))}
-          </motion.div>
+          <div className="flex flex-col items-center gap-6 sm:flex-row sm:items-start">
+            <div className="flex flex-col items-center gap-3">
+              <ScoreRing
+                score={state.data.fishing.overallScore}
+                percentage={state.data.fishing.percentage}
+              />
+              <Badge variant={gradeVariant(state.data.fishing.grade)}>
+                {state.data.fishing.label} · Grade{' '}
+                {state.data.fishing.grade}
+              </Badge>
+              <span className="text-caption text-muted-foreground">
+                Fishing quality, separate from safety
+              </span>
+            </div>
+
+            <motion.div
+              variants={staggerContainer}
+              initial="hidden"
+              animate="show"
+              className="w-full space-y-4"
+            >
+              {state.data.fishing.factors.map((factor) => (
+                <FactorRow key={factor.key} factor={factor} />
+              ))}
+            </motion.div>
+          </div>
         </div>
       )}
     </PremiumCard>

@@ -21,9 +21,13 @@ const SLACK_DELTA_M = 0.02;
  * using the response's utc_offset_seconds.
  */
 export function openMeteoTimeToIso(
-  value: string,
+  value: string | number,
   utcOffsetSeconds: number
 ): string | null {
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value)) return null;
+    return new Date(value * 1000).toISOString();
+  }
   const hasExplicitOffset = /(?:Z|[+-]\d{2}:\d{2})$/i.test(value);
   const parsed = Date.parse(hasExplicitOffset ? value : `${value}Z`);
   if (Number.isNaN(parsed)) return null;
@@ -35,7 +39,7 @@ export function openMeteoTimeToIso(
 
 /** Builds clean, ordered hourly provider points from parallel API arrays. */
 export function toModelledSeaLevelPoints(
-  times: string[] | undefined,
+  times: (string | number)[] | undefined,
   heights: (number | null)[] | undefined,
   utcOffsetSeconds = 0
 ): ModelledSeaLevelPoint[] {
@@ -48,7 +52,7 @@ export function toModelledSeaLevelPoints(
     if (
       time === undefined ||
       typeof heightM !== 'number' ||
-      Number.isNaN(heightM)
+      !Number.isFinite(heightM)
     ) {
       continue;
     }
@@ -94,6 +98,19 @@ export function modelledTideTrendAt(
   const delta = after - before;
   if (Math.abs(delta) <= SLACK_DELTA_M) return 'slack';
   return delta > 0 ? 'rising' : 'falling';
+}
+
+/** Centered modelled sea-level change in metres per hour. */
+export function modelledTideRateAt(
+  points: ModelledSeaLevelPoint[],
+  epochMs: number
+): number | null {
+  if (points.length < 2) return null;
+  const samples = samplesFrom(points);
+  const before = monotoneCubicAt(samples, epochMs - TREND_WINDOW_MS);
+  const after = monotoneCubicAt(samples, epochMs + TREND_WINDOW_MS);
+  if (before === null || after === null) return null;
+  return after - before;
 }
 
 /**
@@ -181,9 +198,14 @@ export function deriveModelledTideConditions(
   if (points.length === 0) return null;
 
   const nowMs = now.getTime();
-  const upcomingExtremes = detectModelledTideExtremes(points).filter(
+  const allExtremes = detectModelledTideExtremes(points);
+  const upcomingExtremes = allExtremes.filter(
     (extreme) => new Date(extreme.time).getTime() >= nowMs
   );
+  const previous =
+    [...allExtremes]
+      .reverse()
+      .find((extreme) => new Date(extreme.time).getTime() < nowMs) ?? null;
   const next = upcomingExtremes[0] ?? null;
 
   return {
@@ -201,5 +223,14 @@ export function deriveModelledTideConditions(
         )
       : null,
     dailyRangeM: modelledDailyTidalRange(points, now),
+    rateMPerHour: modelledTideRateAt(points, nowMs),
+    minutesSincePreviousExtreme: previous
+      ? Math.max(
+          0,
+          Math.floor(
+            (nowMs - new Date(previous.time).getTime()) / 60_000
+          )
+        )
+      : null,
   };
 }

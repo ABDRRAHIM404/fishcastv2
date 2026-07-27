@@ -34,32 +34,91 @@ describe('computeScore', () => {
     }
   });
 
-  it('effective weights of available factors sum to ~1', () => {
+  it('fixed factor weights sum to ~1', () => {
     const result = computeScore(excellentMarine());
     const total = result.factors.reduce((s, f) => s + f.weight, 0);
     expect(total).toBeCloseTo(1, 5);
   });
 
-  it('handles all-missing provider data: zero score, grade D, weights 0', () => {
+  it('handles all-missing provider data: zero score with fixed weights', () => {
     const result = computeScore(emptyMarine());
     expect(result.percentage).toBe(0);
     expect(result.overallScore).toBe(0);
     expect(result.grade).toBe('D');
     for (const f of result.factors) {
       expect(f.unavailable).toBe(true);
-      expect(f.weight).toBe(0);
+      expect(f.weight).toBeGreaterThan(0);
       expect(f.score).toBeNull();
     }
+    expect(result.factors.reduce((sum, factor) => sum + factor.weight, 0)).toBeCloseTo(
+      1,
+      5
+    );
   });
 
-  it('renormalizes weights when some factors are missing', () => {
+  it('keeps fixed weights and penalizes missing critical wave data', () => {
     const marine = excellentMarine();
-    marine.waves = { status: 'error', message: 'down' }; // drops wave + swell
+    const complete = computeScore(marine);
+    marine.waves = { status: 'error', message: 'down' };
     const result = computeScore(marine);
     const total = result.factors.reduce((s, f) => s + f.weight, 0);
     expect(total).toBeCloseTo(1, 5);
-    expect(result.factors.find((f) => f.key === 'wave')?.weight).toBe(0);
-    expect(result.factors.find((f) => f.key === 'swell')?.weight).toBe(0);
+    expect(result.factors.find((f) => f.key === 'wave')).toMatchObject({
+      weight: 0.18,
+      score: null,
+      appliedScore: 0,
+      unavailable: true,
+    });
+    expect(result.factors.find((f) => f.key === 'swell')).toMatchObject({
+      weight: 0.12,
+      score: null,
+      appliedScore: 0.5,
+      unavailable: true,
+    });
+    expect(result.percentage).toBeLessThan(complete.percentage);
+    expect(result.percentage).toBeLessThanOrEqual(79);
+    expect(result.integrity.confidence).toBe('low');
+    expect(result.label).not.toBe('Excellent');
+  });
+
+  it('uses a neutral contribution for a missing non-critical factor', () => {
+    const marine = excellentMarine();
+    if (marine.weather.status !== 'ok') throw new Error('fixture');
+    marine.weather.data.pressureMb = null;
+    const result = computeScore(marine);
+    expect(result.factors.find((f) => f.key === 'pressure')).toMatchObject({
+      score: null,
+      appliedScore: 0.5,
+      unavailable: true,
+    });
+    expect(result.integrity.missingCriticalInputs).toEqual([]);
+  });
+
+  it('prevents Excellent when the critical wave-period input is absent', () => {
+    const marine = excellentMarine();
+    if (marine.waves.status !== 'ok') throw new Error('fixture');
+    marine.waves.data.wavePeriodS = null;
+    const result = computeScore(marine);
+    expect(result.integrity.missingCriticalInputs).toContain('wavePeriod');
+    expect(result.percentage).toBeLessThanOrEqual(79);
+    expect(result.label).not.toBe('Excellent');
+    expect(result.integrity.confidence).toBe('low');
+  });
+
+  it.each([
+    ['wind', (marine: ReturnType<typeof excellentMarine>) => {
+      marine.wind = { status: 'error', message: 'down' };
+    }],
+    ['tide', (marine: ReturnType<typeof excellentMarine>) => {
+      marine.tide = { status: 'error', message: 'down' };
+    }],
+  ])('penalizes missing critical %s provider data', (_name, remove) => {
+    const marine = excellentMarine();
+    remove(marine);
+    const result = computeScore(marine);
+    expect(result.percentage).toBeLessThanOrEqual(79);
+    expect(result.label).not.toBe('Excellent');
+    expect(result.integrity.missingCriticalInputs.length).toBeGreaterThan(0);
   });
 
   it('keeps percentage within [0, 100] and score within [0, 10]', () => {

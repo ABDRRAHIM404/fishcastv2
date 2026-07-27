@@ -14,6 +14,7 @@ import type {
   WeatherConditions,
   TideConditions,
 } from '@/types/marine';
+import { deriveWaveMetrics } from '@/lib/waves/derived';
 
 const ISO = '2026-06-14T10:00:00.000Z';
 
@@ -28,6 +29,8 @@ function tide(partial: Partial<TideConditions>): TideConditions {
     extremes: [],
     minutesToNextExtreme: null,
     dailyRangeM: null,
+    rateMPerHour: null,
+    minutesSincePreviousExtreme: null,
     ...partial,
   };
 }
@@ -80,6 +83,20 @@ describe('factor rules return null on missing data', () => {
       swellHeightM: null,
       swellPeriodS: null,
       swellDirectionDeg: null,
+      secondarySwellHeightM: null,
+      secondarySwellPeriodS: null,
+      secondarySwellDirectionDeg: null,
+      seaSurfaceTemperatureC: null,
+      oceanCurrentVelocityKmh: null,
+      oceanCurrentDirectionDeg: null,
+      derived: deriveWaveMetrics({
+        waveHeightM: null,
+        wavePeriodS: null,
+        swellHeightM: null,
+        swellDirectionDeg: null,
+        secondarySwellHeightM: null,
+        secondarySwellDirectionDeg: null,
+      }),
     };
     expect(scoreWave(waves)).toBeNull();
     const weather: WeatherConditions = {
@@ -92,6 +109,7 @@ describe('factor rules return null on missing data', () => {
       pressureMb: null,
       pressureTrendMbPerHr: null,
       weatherCode: null,
+      visibilityM: null,
     };
     expect(scoreWeather(weather)).toBeNull();
     expect(scoreTide(tide({}))).toBeNull();
@@ -115,17 +133,65 @@ describe('scoreWind', () => {
 });
 
 describe('scoreTide', () => {
-  it('rewards a moving tide over slack', () => {
+  it('rewards measured movement over slack without awarding full score', () => {
     const moving = scoreTide(tide({
       heightM: 1,
       trend: 'rising',
+      rateMPerHour: 0.25,
+      dailyRangeM: 1.5,
+      minutesToNextExtreme: 180,
+      minutesSincePreviousExtreme: 180,
     }));
     const slack = scoreTide(tide({
       heightM: 1,
       trend: 'slack',
       extremes: [{ time: ISO, state: 'high', heightM: 2 }],
     }));
-    expect(moving).toBe(1);
-    expect(slack).toBe(0.5);
+    expect(moving).not.toBeNull();
+    expect(moving!).toBeGreaterThan(slack!);
+    expect(moving!).toBeLessThanOrEqual(0.85);
+    expect(slack).toBe(0.3);
+  });
+
+  it('scores equivalent rising and falling movement equally', () => {
+    const common = {
+      heightM: 1,
+      rateMPerHour: 0.2,
+      dailyRangeM: 1.4,
+      minutesToNextExtreme: 150,
+      minutesSincePreviousExtreme: 150,
+    };
+    expect(scoreTide(tide({ ...common, trend: 'rising' }))).toBe(
+      scoreTide(tide({ ...common, trend: 'falling' }))
+    );
+  });
+
+  it('penalizes otherwise identical movement close to a turning point', () => {
+    const common = {
+      heightM: 1,
+      trend: 'rising' as const,
+      rateMPerHour: 0.2,
+      dailyRangeM: 1.4,
+      minutesSincePreviousExtreme: 180,
+    };
+    const nearTurn = scoreTide(
+      tide({ ...common, minutesToNextExtreme: 20 })
+    );
+    const midTide = scoreTide(
+      tide({ ...common, minutesToNextExtreme: 180 })
+    );
+    expect(nearTurn!).toBeLessThan(midTide!);
+  });
+
+  it('does not treat missing rate and range as an ideal moving tide', () => {
+    const result = scoreTide(
+      tide({
+        heightM: 1,
+        trend: 'falling',
+        rateMPerHour: null,
+        dailyRangeM: null,
+      })
+    );
+    expect(result).toBeLessThan(0.7);
   });
 });

@@ -1,7 +1,7 @@
 /**
  * Pure scoring rules: each maps a normalized marine value to a [0, 1] factor
  * score. Deterministic and side-effect free. Returns null when the required
- * input is missing so the engine can drop the factor and renormalize weights.
+ * input is missing so the engine can apply its explicit missing-data policy.
  */
 import {
   WIND_KMH,
@@ -143,34 +143,46 @@ export function scoreMoon(marine: MarineConditions): number | null {
   return clamp01(moonScore);
 }
 
-function timeOfDayScore(iso: string): number {
-  const date = new Date(iso);
-  const hour = date.getHours();
-
-  if ((hour >= 5 && hour < 8) || (hour >= 17 && hour < 20)) {
-    return 1;
-  }
-  if ((hour >= 8 && hour < 11) || (hour >= 14 && hour < 17) || (hour >= 20 && hour < 22)) {
-    return 0.8;
-  }
-  return 0.55;
-}
-
 export function scoreTimeOfDay(marine: MarineConditions): number | null {
-  const time =
-    marine.weather.status === 'ok'
-      ? marine.weather.data.observedAt
-      : marine.tide.status === 'ok'
-      ? marine.tide.data.observedAt
-      : null;
-  if (time === null) return null;
-
-  return clamp01(timeOfDayScore(time));
+  if (marine.astronomy?.status !== 'ok') return null;
+  const astronomy = marine.astronomy.data;
+  if (astronomy.daylightState === 'unknown') return null;
+  if (astronomy.daylightState === 'civil-twilight') return 1;
+  if (astronomy.daylightState === 'daylight') {
+    const now = new Date(astronomy.observedAt).getTime();
+    const nearTurn = [astronomy.sunrise, astronomy.sunset].some((value) => {
+      if (!value) return false;
+      return Math.abs(new Date(value).getTime() - now) <= 90 * 60_000;
+    });
+    return nearTurn ? 1 : 0.75;
+  }
+  return 0.45;
 }
 
 export function scoreTide(d: TideConditions): number | null {
-  // A moving tide (rising or falling) generally fishes better than slack.
-  if (d.trend === null && d.extremes.length === 0) return null;
-  if (d.trend === 'rising' || d.trend === 'falling') return 1;
-  return 0.5;
+  if (d.heightM === null || d.trend === null) return null;
+  if (d.trend === 'slack') return 0.3;
+
+  // Rising and falling are treated symmetrically. General-purpose quality is
+  // based on movement strength and distance from a turning point, not a claim
+  // that one universal tide direction is best.
+  const referenceRate =
+    d.dailyRangeM !== null && d.dailyRangeM > 0
+      ? Math.max(0.08, d.dailyRangeM / 6)
+      : 0.15;
+  const movement =
+    d.rateMPerHour === null
+      ? 0.35
+      : clamp01(Math.abs(d.rateMPerHour) / referenceRate);
+  let result = 0.45 + movement * 0.4;
+
+  const distances = [
+    d.minutesToNextExtreme,
+    d.minutesSincePreviousExtreme,
+  ].filter((value): value is number => value !== null);
+  const nearestTurn = distances.length > 0 ? Math.min(...distances) : null;
+  if (nearestTurn !== null && nearestTurn <= 30) result *= 0.65;
+  else if (nearestTurn !== null && nearestTurn <= 90) result *= 0.85;
+
+  return clamp01(Math.min(0.85, result));
 }

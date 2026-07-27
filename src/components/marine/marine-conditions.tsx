@@ -47,8 +47,28 @@ function WavesBody({ d }: { d: WaveConditions }) {
     <>
       <MarineMetric label="Wave height" value={fmt(d.waveHeightM, ' m', 1)} />
       <MarineMetric label="Wave period" value={fmt(d.wavePeriodS, ' s', 0)} />
+      <MarineMetric
+        label="Wave direction"
+        value={fmt(d.waveDirectionDeg, '°', 0)}
+      />
       <MarineMetric label="Swell height" value={fmt(d.swellHeightM, ' m', 1)} />
       <MarineMetric label="Swell period" value={fmt(d.swellPeriodS, ' s', 0)} />
+      <MarineMetric
+        label="Secondary swell"
+        value={fmt(d.secondarySwellHeightM, ' m', 1)}
+      />
+      <MarineMetric
+        label="Sea temperature"
+        value={fmt(d.seaSurfaceTemperatureC, '°C', 1)}
+      />
+      <MarineMetric
+        label="Est. wavelength"
+        value={fmt(d.derived.estimatedWavelengthM, ' m', 0)}
+      />
+      <MarineMetric
+        label="Est. wave power"
+        value={fmt(d.derived.estimatedPowerKwPerM, ' kW/m', 1)}
+      />
     </>
   );
 }

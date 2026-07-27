@@ -13,8 +13,10 @@ export const TTL_MS: Record<MarineKind, number> = {
 };
 
 export const PROVIDERS = {
-  openMeteoForecast: 'open-meteo-forecast',
-  openMeteoMarine: 'open-meteo-marine',
+  // Version suffix invalidates normalized cache rows created before the
+  // expanded integrity/safety domain contract.
+  openMeteoForecast: 'open-meteo-forecast-v2',
+  openMeteoMarine: 'open-meteo-marine-v2',
 } as const;
 
 export const OPEN_METEO_FORECAST_URL = 'https://api.open-meteo.com/v1/forecast';

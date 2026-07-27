@@ -21,7 +21,12 @@ export function toSamples(
   for (let i = 0; i < time.length; i++) {
     const t = time[i];
     const v = values[i];
-    if (t === undefined || v === null || v === undefined || Number.isNaN(v)) {
+    if (
+      t === undefined ||
+      v === null ||
+      v === undefined ||
+      !Number.isFinite(v)
+    ) {
       continue;
     }
     const ms = new Date(t).getTime();
@@ -54,6 +59,20 @@ export function linearAt(samples: Sample[], ms: number): number | null {
   return a.value + (c.value - a.value) * t;
 }
 
+function isInsideSampleRange(samples: Sample[], ms: number): boolean {
+  if (samples.length === 0) return false;
+  if (samples.length === 1) return ms === samples[0]!.ms;
+  return ms >= samples[0]!.ms && ms <= samples[samples.length - 1]!.ms;
+}
+
+/** Linear interpolation with no extrapolation beyond provider coverage. */
+export function linearWithinAt(
+  samples: Sample[],
+  ms: number
+): number | null {
+  return isInsideSampleRange(samples, ms) ? linearAt(samples, ms) : null;
+}
+
 /**
  * Circular (shortest-arc) interpolation for angles in degrees. Interpolates
  * across the 0/360 boundary correctly. Returns null when no samples exist.
@@ -69,6 +88,14 @@ export function circularAt(samples: Sample[], ms: number): number | null {
   const delta = ((c.value - a.value + 540) % 360) - 180; // shortest signed arc
   const result = a.value + delta * t;
   return ((result % 360) + 360) % 360;
+}
+
+/** Circular interpolation with no extrapolation beyond provider coverage. */
+export function circularWithinAt(
+  samples: Sample[],
+  ms: number
+): number | null {
+  return isInsideSampleRange(samples, ms) ? circularAt(samples, ms) : null;
 }
 
 /**
@@ -140,4 +167,14 @@ export function monotoneCubicAt(samples: Sample[], ms: number): number | null {
     h01 * samples[hi]!.value +
     h11 * h * m[hi]!
   );
+}
+
+/** Monotone-cubic interpolation with no extrapolation beyond coverage. */
+export function monotoneCubicWithinAt(
+  samples: Sample[],
+  ms: number
+): number | null {
+  return isInsideSampleRange(samples, ms)
+    ? monotoneCubicAt(samples, ms)
+    : null;
 }
