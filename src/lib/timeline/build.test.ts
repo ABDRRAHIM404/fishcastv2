@@ -148,7 +148,7 @@ describe('buildTimeline', () => {
       flatAnchors(),
       NOW
     );
-    expect(timeline.schemaVersion).toBe(2);
+    expect(timeline.schemaVersion).toBe(3);
     expect(timeline.date).toBe(DATE);
     expect(timeline.range.start).toBe(RANGE.startIso);
     expect(timeline.range.endExclusive).toBe(RANGE.endIso);

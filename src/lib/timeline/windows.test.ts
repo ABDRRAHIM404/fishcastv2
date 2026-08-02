@@ -25,6 +25,11 @@ function pt(
     tideTrend: 'rising',
     tideRateMPerHour: 0.2,
     tideDailyRangeM: 1.5,
+    tideMinutesToNextExtreme: 120,
+    tideNextExtremeState: 'high',
+    tideNextExtremeTime: new Date(
+      new Date(time).getTime() + 120 * 60_000
+    ).toISOString(),
     windSpeedKmh: 10,
     windGustKmh: 14,
     windDirectionDeg: 270,
@@ -42,10 +47,16 @@ function pt(
     oceanCurrentDirectionDeg: 180,
     temperatureC: 21,
     precipitationMm: 0,
+    cloudCoverPct: 40,
     pressureMb: 1017,
+    pressureTrendMbPerHr: 0.1,
     visibilityM: 20_000,
     weatherCode: 1,
     daylightState: 'daylight',
+    sunrise: '2026-06-14T05:30:00.000Z',
+    sunset: '2026-06-14T19:45:00.000Z',
+    civilDawn: '2026-06-14T05:00:00.000Z',
+    civilDusk: '2026-06-14T20:15:00.000Z',
     waveMetrics: {
       estimatedWavelengthM: 100,
       estimatedSteepness: 0.006,

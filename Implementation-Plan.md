@@ -30,6 +30,7 @@ fishcastv2/
 │   │   │   ├── species/             # Species catalog + per-spot species
 │   │   │   └── favorites/           # Device-local saved spots
 │   │   ├── api/
+│   │   │   ├── forecast/            # Compact seven-day context + lazy comparison
 │   │   │   ├── weather/             # Weather/marine proxy routes
 │   │   │   ├── score/               # Scoring endpoint
 │   │   │   ├── timeline/            # Interpolated timeline data
@@ -39,6 +40,7 @@ fishcastv2/
 │   │   ├── layout.tsx
 │   │   └── globals.css
 │   ├── components/
+│   │   ├── forecast/                # Controls, summary, table, graphs, timeline, comparison
 │   │   ├── ui/                      # Shadcn primitives
 │   │   ├── map/                     # Leaflet markers, clustering
 │   │   ├── timeline/                # Scrubber, charts, window highlights
@@ -46,6 +48,7 @@ fishcastv2/
 │   │   ├── species/                 # Species cards, seasonality, filters
 │   │   └── shared/                  # Skeletons, animations
 │   ├── lib/
+│   │   ├── forecast-ui/             # Pure interval aggregation, labels, types, UI service
 │   │   ├── supabase/                # Anonymous read + service-role clients
 │   │   ├── spots/local-favorites.ts # Versioned local favourites data
 │   │   ├── scoring/                 # Deterministic score engine
@@ -89,14 +92,18 @@ Core tables, designed for expansion beyond the initial region:
 
 Use **Next.js Route Handlers** as a proxy layer so external API keys stay server-side and responses are normalized + cached in `condition_snapshots`:
 
-- `GET /api/weather?spotId=` — fetches weather/wind/wave/tide, normalizes, persists snapshot.
+- `GET /api/forecast?spot=&date=` — returns one compact normalized seven-day context with every display interval; it never returns raw provider payloads.
+- `GET /api/forecast/compare?date=&time=` — lazily compares all active spots for one local timestamp using the existing server cache.
+- `GET /api/marine?spotId=` — returns normalized current marine conditions.
 - `GET /api/timeline?spotId=&date=` — returns forecast points **interpolated to 5-minute increments** (the timeline's data backbone).
 - `GET /api/windows?spotId=&date=` — runs the **best fishing window** calculation over the interpolated timeline and returns ranked windows with start/end/peak/label.
 - `GET /api/species?spotId=` — returns species present at a spot with seasonality and prevalence; `GET /api/species` returns the regional catalog.
 - `POST /api/score` — runs the deterministic engine on a condition set, returns score (0–10) + factor breakdown + label.
 - `POST /api/ai/recommend` — sends *only* structured marine data + score + active species + windows to Gemini, returns an interpretive sentence. Guardrails prevent data invention.
 
-TanStack Query handles all client fetching, caching, and background revalidation.
+The seven-day forecast uses one abortable browser request. Server-side timeline,
+marine and weather caches prevent repeated provider work; changing day, interval,
+scope or view reuses the response already held in the browser.
 
 ---
 
@@ -163,6 +170,14 @@ TanStack Query handles all client fetching, caching, and background revalidation
 **Phase 10 — Polish & Performance**
 - Animation refinement, performance optimization, responsive QA, final review.
 - *Milestone:* premium consumer-grade product ready.
+
+**Detailed Seven-day Forecast Interface — Implemented**
+- Consolidate seven local days into one normalized forecast response.
+- Preserve the five-minute shared evaluator while exposing compact 30m/1h/3h/6h periods.
+- Add daily decision summaries, table, graph, timeline and deterministic interpretation layers.
+- Keep fishing quality separate from conservative safety; surface data quality and orientation limitations.
+- Add lazy six-spot comparison and local UI preferences without accounts.
+- *Milestone:* ordinary fishermen can scan technical conditions and understand the decision without reading raw provider data.
 
 ---
 

@@ -22,7 +22,6 @@ This is a real product, not a demo, portfolio project, or school project.
 * Supabase
 * Leaflet + OpenStreetMap
 * Gemini API
-* TanStack Query
 
 ---
 
@@ -56,7 +55,7 @@ FishCast V1 only covers:
 * Sidi R'bat
 * Tifnit
 * Douira
-* Massa
+* Am9erss (stored as `massa` in the existing database)
 * Sidi Boulfdail
 * Aglou
 
@@ -153,11 +152,12 @@ Spot types:
 Display:
 
 * Hero image
-* Weather
-* Tide
-* Wind
-* Waves
-* Fishing score
+* Decision-first seven-day fishing forecast
+* 30-minute, 1-hour, 3-hour and 6-hour views
+* Detailed table, categorized graphs and selected-day timeline
+* Weather, modelled tide, wind, waves and currents
+* Fishing quality and a separate conservative safety assessment
+* Ranked fishing windows and matched in-season species
 * AI recommendation
 
 The page must instantly communicate whether fishing conditions are good or bad.
@@ -207,18 +207,22 @@ Display factor breakdowns.
 
 ---
 
-## Flagship Feature: Marine Timeline
+## Flagship Feature: Seven-day Forecast
 
 This is the most important feature in FishCast.
 
-Inspired by Nautide.
+The spot page uses one compact `GET /api/forecast` response for all seven days
+and all display intervals. A six-spot comparison is fetched separately and only
+when requested. Provider calls and service-role cache access remain server-only.
 
 Requirements:
 
-* Timeline scrubbing
-* 5-minute increments
-* Smooth animations
-* Mobile-first interaction
+* Windguru-inspired dense table with plain-language labels
+* Seven selectable local days in `Africa/Casablanca`
+* Device-local interval and view preferences
+* Shareable date, interval, view and scope URL state
+* Horizontally scrollable mobile table with sticky parameter names
+* Accessible 30-minute timeline backed by the internal 5-minute model
 
 As the user moves through time:
 
@@ -230,16 +234,19 @@ As the user moves through time:
 * Fishing score updates
 * AI recommendation updates
 
-Use interpolation between forecast points.
+The internal timeline uses interpolation between forecast points. Thirty-minute
+display rows may therefore be estimated, hourly rows prefer native provider
+timestamps, and 3-hour/6-hour rows are explicitly labelled aggregates. Safety
+uses the worst underlying five-minute state in every display interval, so a
+brief Dangerous period cannot disappear inside an average.
 
 Do not require true 5-minute forecast APIs.
 
-Display:
+Display modes:
 
-* Tide curve
-* Wind chart
-* Wave chart
-* Fishing score chart
+* Detailed forecast table
+* Fishing, safety, wind, wave, tide and weather graph categories
+* Selected-day scrubber and complete condition readout
 
 Highlight:
 
@@ -250,7 +257,11 @@ Highlight:
 
 The user should immediately understand:
 
-"When is the best time to fish today?"
+"Should I fish, when is the best window, and what conditions require caution?"
+
+Fishing quality never overrides safety. Modelled tide and derived wave metrics
+are estimates, and the onshore/offshore interpretation uses unverified editorial
+spot orientation. See [Forecast methodology](docs/forecast-methodology.md).
 
 This should be one of the most impressive parts of the application.
 

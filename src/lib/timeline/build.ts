@@ -438,6 +438,9 @@ export function buildTimeline(
       tideTrend: tide?.trend ?? null,
       tideRateMPerHour: tide?.rateMPerHour ?? null,
       tideDailyRangeM: tide?.dailyRangeM ?? null,
+      tideMinutesToNextExtreme: tide?.minutesToNextExtreme ?? null,
+      tideNextExtremeState: tide?.extremes[0]?.state ?? null,
+      tideNextExtremeTime: tide?.extremes[0]?.time ?? null,
       windSpeedKmh,
       windGustKmh,
       windDirectionDeg,
@@ -455,13 +458,31 @@ export function buildTimeline(
       oceanCurrentDirectionDeg,
       temperatureC,
       precipitationMm,
+      cloudCoverPct,
       pressureMb,
+      pressureTrendMbPerHr,
       visibilityM,
       weatherCode: weatherCodeValue,
       daylightState:
         marine.astronomy?.status === 'ok'
           ? marine.astronomy.data.daylightState
           : 'unknown',
+      sunrise:
+        marine.astronomy?.status === 'ok'
+          ? marine.astronomy.data.sunrise
+          : null,
+      sunset:
+        marine.astronomy?.status === 'ok'
+          ? marine.astronomy.data.sunset
+          : null,
+      civilDawn:
+        marine.astronomy?.status === 'ok'
+          ? marine.astronomy.data.civilDawn
+          : null,
+      civilDusk:
+        marine.astronomy?.status === 'ok'
+          ? marine.astronomy.data.civilDusk
+          : null,
       waveMetrics,
       interpretation: evaluation.interpretation,
       integrity,
@@ -477,7 +498,7 @@ export function buildTimeline(
   const recommendedWindow = windows[0] ?? null;
 
   return {
-    schemaVersion: 2,
+    schemaVersion: 3,
     spotId: spot.id,
     date,
     range: {

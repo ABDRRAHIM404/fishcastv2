@@ -15,6 +15,9 @@ export interface TimelinePoint {
   tideTrend: TideTrend | null;
   tideRateMPerHour: number | null;
   tideDailyRangeM: number | null;
+  tideMinutesToNextExtreme: number | null;
+  tideNextExtremeState: 'high' | 'low' | null;
+  tideNextExtremeTime: string | null;
   windSpeedKmh: number | null;
   windGustKmh: number | null;
   windDirectionDeg: number | null;
@@ -32,10 +35,16 @@ export interface TimelinePoint {
   oceanCurrentDirectionDeg: number | null;
   temperatureC: number | null;
   precipitationMm: number | null;
+  cloudCoverPct: number | null;
   pressureMb: number | null;
+  pressureTrendMbPerHr: number | null;
   visibilityM: number | null;
   weatherCode: number | null;
   daylightState: 'daylight' | 'civil-twilight' | 'night' | 'unknown';
+  sunrise: string | null;
+  sunset: string | null;
+  civilDawn: string | null;
+  civilDusk: string | null;
   waveMetrics: WaveDerivedMetrics;
   interpretation: DirectionInterpretation;
   integrity: ForecastIntegrity;
@@ -73,7 +82,7 @@ export interface DailyFishingWindows {
 }
 
 export interface Timeline {
-  schemaVersion: 2;
+  schemaVersion: 3;
   spotId: string;
   /** Requested Africa/Casablanca local day. */
   date: string;

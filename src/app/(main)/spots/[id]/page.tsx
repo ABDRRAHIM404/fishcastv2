@@ -8,20 +8,26 @@ import { SpotHero } from '@/components/spot/spot-hero';
 import { SpotGallery } from '@/components/spot/spot-gallery';
 import { FavoriteButton } from '@/components/spot/favorite-button';
 import { SpeciesSection, type SpeciesFlags } from '@/components/species/species-section';
-import { MarineConditionsSection } from '@/components/marine/marine-conditions';
-import { FishingScoreCard } from '@/components/scoring/fishing-score-card';
 import { AiRecommendationCard } from '@/components/ai/ai-recommendation-card';
-import { MarineTimelineSection } from '@/components/timeline/marine-timeline-section';
+import { ForecastExperience } from '@/components/forecast/forecast-experience';
 import { buttonVariants } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { getSpotBySlug } from '@/lib/spots/queries';
+import { getActiveSpots, getSpotBySlug } from '@/lib/spots/queries';
 import { getSpotPhotos } from '@/lib/spots/photos';
 import { getSpotSpecies, getSpeciesCatalog } from '@/lib/species/queries';
 import { getMarineConditionsForSpot } from '@/lib/marine/service';
 import { evaluateSuitability } from '@/lib/species/suitability';
 import { isInSeason } from '@/types/species';
 import { SPOT_TYPE_LABELS, DIFFICULTY_LABELS } from '@/types/spot';
-import { productMonth } from '@/lib/time/casablanca';
+import { productMonth, todayProductDate } from '@/lib/time/casablanca';
+import {
+  FORECAST_UI_DEFAULTS,
+  dateInForecastRange,
+  isForecastInterval,
+  isForecastScope,
+  isForecastView,
+} from '@/lib/forecast-ui/query';
+import { publicSpotName } from '@/lib/forecast-ui/spots';
 
 // The dynamic segment is the spot slug (route folder name kept as [id]).
 export async function generateMetadata({
@@ -56,15 +62,35 @@ export async function generateMetadata({
 
 export default async function SpotDetailsPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { id } = await params;
+  const query = await searchParams;
   const spot = await getSpotBySlug(id);
   if (!spot) notFound();
+  const today = todayProductDate();
+  const queryDate = typeof query.date === 'string' ? query.date : null;
+  const queryInterval =
+    typeof query.interval === 'string' ? query.interval : null;
+  const queryView = typeof query.view === 'string' ? query.view : null;
+  const queryScope = typeof query.scope === 'string' ? query.scope : null;
+  const initialDate =
+    queryDate && dateInForecastRange(queryDate, today) ? queryDate : today;
+  const initialInterval = isForecastInterval(queryInterval)
+    ? queryInterval
+    : FORECAST_UI_DEFAULTS.interval;
+  const initialView = isForecastView(queryView)
+    ? queryView
+    : FORECAST_UI_DEFAULTS.view;
+  const initialScope = isForecastScope(queryScope)
+    ? queryScope
+    : FORECAST_UI_DEFAULTS.scope;
 
   // Fetch presentation data in parallel. Species/photos are read-only here.
-  const [photos, species, catalog, marine] = await Promise.all([
+  const [photos, species, catalog, marine, allSpots] = await Promise.all([
     getSpotPhotos(spot.id),
     getSpotSpecies(spot.id),
     getSpeciesCatalog(),
@@ -74,6 +100,7 @@ export default async function SpotDetailsPage({
       latitude: spot.latitude,
       longitude: spot.longitude,
     }).catch(() => null),
+    getActiveSpots(),
   ]);
 
   // Per-species presentation flags: "in season" (current month) and
@@ -138,13 +165,19 @@ export default async function SpotDetailsPage({
 
           <SpotGallery photos={photos} spotName={spot.name} />
 
-          <FishingScoreCard spotId={spot.id} />
+          <ForecastExperience
+            spotSlug={spot.slug}
+            initialDate={initialDate}
+            initialInterval={initialInterval}
+            initialView={initialView}
+            initialScope={initialScope}
+            spots={allSpots.map((item) => ({
+              slug: item.slug,
+              displayName: publicSpotName(item.slug, item.name),
+            }))}
+          />
 
           <AiRecommendationCard spotId={spot.id} />
-
-          <MarineTimelineSection spotId={spot.id} />
-
-          <MarineConditionsSection spotId={spot.id} />
 
           <SpeciesSection species={species} flags={speciesFlags} />
         </div>

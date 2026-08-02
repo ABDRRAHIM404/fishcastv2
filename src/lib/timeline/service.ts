@@ -55,7 +55,7 @@ async function readCache(
   if (new Date(row.expires_at).getTime() <= Date.now()) return null;
   const timeline = row.payload as unknown as Timeline;
   if (
-    timeline.schemaVersion !== 2 ||
+    timeline.schemaVersion !== 3 ||
     timeline.tideMetadata?.source !== 'open-meteo-modelled' ||
     timeline.date !== date
   ) {
@@ -86,24 +86,14 @@ async function writeCache(
   );
 }
 
-/**
- * Cache-aware timeline resolver. Returns a fresh cached timeline when present,
- * otherwise fetches forecast anchor series, builds the deterministic timeline,
- * caches it, and returns it.
- */
-export async function getTimelineForSpot(
-  spot: TimelineSpotInput,
-  date: string
-): Promise<Timeline> {
-  const cached = await readCache(spot.id, date);
-  if (cached) return cached;
-
+/** Loads the complete seven-day anchor set with one request per provider. */
+async function loadAnchors(spot: TimelineSpotInput): Promise<ForecastAnchors> {
   const [forecast, marine] = await Promise.allSettled([
     fetchHourlyForecast(spot.latitude, spot.longitude),
     fetchHourlyMarine(spot.latitude, spot.longitude),
   ]);
 
-  const anchors: ForecastAnchors = {
+  return {
     wind:
       forecast.status === 'fulfilled'
         ? {
@@ -188,17 +178,56 @@ export async function getTimelineForSpot(
         marine.status === 'fulfilled' ? marine.value.fetchedAt : null,
     },
   };
+}
 
-  const now = new Date();
-  const range = productDayRange(date);
-  const timeline = buildTimeline(
-    spot,
-    date,
-    range.startMs,
-    range.endMs,
-    anchors,
-    now
+/**
+ * Resolves multiple local days in one operation. Fresh per-day cache entries
+ * are reused; all cache misses share one hourly forecast and one marine load.
+ */
+export async function getTimelinesForSpot(
+  spot: TimelineSpotInput,
+  dates: string[]
+): Promise<Timeline[]> {
+  if (dates.length === 0) return [];
+  const cached = await Promise.all(
+    dates.map((date) => readCache(spot.id, date))
   );
-  await writeCache(spot.id, date, timeline);
+  if (cached.every((timeline) => timeline !== null)) {
+    return cached as Timeline[];
+  }
+
+  const anchors = await loadAnchors(spot);
+  const now = new Date();
+  const timelines = dates.map((date, index) => {
+    const existing = cached[index];
+    if (existing) return existing;
+    const range = productDayRange(date);
+    return buildTimeline(
+      spot,
+      date,
+      range.startMs,
+      range.endMs,
+      anchors,
+      now
+    );
+  });
+
+  await Promise.all(
+    timelines.map((timeline, index) =>
+      cached[index]
+        ? Promise.resolve()
+        : writeCache(spot.id, timeline.date, timeline)
+    )
+  );
+  return timelines;
+}
+
+/** Cache-aware resolver for one Casablanca calendar day. */
+export async function getTimelineForSpot(
+  spot: TimelineSpotInput,
+  date: string
+): Promise<Timeline> {
+  const [timeline] = await getTimelinesForSpot(spot, [date]);
+  if (!timeline) throw new Error('Timeline could not be generated');
   return timeline;
 }
