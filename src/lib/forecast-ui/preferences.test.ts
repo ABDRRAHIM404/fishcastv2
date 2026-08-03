@@ -7,6 +7,17 @@ import {
 } from '@/lib/forecast-ui/preferences';
 
 describe('forecast table preferences', () => {
+  it('keeps the complete Safety Score group last in the required detail order', () => {
+    expect(FORECAST_TABLE_GROUPS).toEqual([
+      'wind',
+      'waves',
+      'tide',
+      'environment',
+      'fishing',
+      'safety',
+    ]);
+  });
+
   it('uses compact progressive disclosure on mobile and detail on desktop', () => {
     expect(parseForecastTablePreference(null, 'mobile')).toEqual({
       mode: 'compact',

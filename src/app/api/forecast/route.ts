@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { dateInForecastRange } from '@/lib/forecast-ui/query';
-import { getForecastContext } from '@/lib/forecast-ui/service';
+import { getCachedForecastContext } from '@/lib/forecast-ui/service';
 import { getActiveSpots, getSpotBySlug } from '@/lib/spots/queries';
 import { todayProductDate } from '@/lib/time/casablanca';
 
@@ -25,16 +25,23 @@ export async function GET(request: Request) {
     );
   }
 
-  let spot = await getSpotBySlug(spotValue);
-  if (!spot) {
-    spot = (await getActiveSpots()).find((item) => item.id === spotValue) ?? null;
-  }
-  if (!spot) {
-    return NextResponse.json({ error: 'Spot not found' }, { status: 404 });
-  }
-
+  const startedAt = performance.now();
   try {
-    return NextResponse.json(await getForecastContext(spot, date));
+    let spot = await getSpotBySlug(spotValue);
+    if (!spot) {
+      spot =
+        (await getActiveSpots()).find((item) => item.id === spotValue) ?? null;
+    }
+    if (!spot) {
+      return NextResponse.json({ error: 'Spot not found' }, { status: 404 });
+    }
+    const result = await getCachedForecastContext(spot, date);
+    return NextResponse.json(result.data, {
+      headers: {
+        'X-FishCast-Cache': result.cacheStatus,
+        'Server-Timing': `forecast;dur=${(performance.now() - startedAt).toFixed(1)}`,
+      },
+    });
   } catch {
     return NextResponse.json(
       { error: 'Forecast is temporarily unavailable.' },
@@ -42,4 +49,3 @@ export async function GET(request: Request) {
     );
   }
 }
-

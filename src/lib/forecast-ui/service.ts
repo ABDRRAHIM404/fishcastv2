@@ -26,6 +26,51 @@ import type { Timeline } from '@/lib/timeline/types';
 import type { Spot } from '@/types/spot';
 
 const INTERVALS: readonly ForecastInterval[] = ['30m', '1h', '3h', '6h'];
+export const FORECAST_CONTEXT_CACHE_TTL_MS = 2 * 60 * 1000;
+const FORECAST_CONTEXT_CACHE_MAX_ENTRIES = 12;
+
+interface ForecastContextCacheEntry {
+  data: ForecastContextResponse;
+  expiresAt: number;
+}
+
+const forecastContextCache = new Map<string, ForecastContextCacheEntry>();
+const forecastContextInFlight = new Map<
+  string,
+  Promise<ForecastContextResponse>
+>();
+
+export type ForecastContextCacheStatus = 'hit' | 'miss' | 'coalesced';
+
+export function forecastContextCacheKey(
+  spotId: string,
+  rangeStart: string
+): string {
+  return `forecast-context:v1:${spotId}:${rangeStart}`;
+}
+
+export function selectContextDate(
+  data: ForecastContextResponse,
+  selectedDate: string
+): ForecastContextResponse {
+  if (!data.days.some((day) => day.date === selectedDate)) return data;
+  return {
+    ...data,
+    selectedDate,
+    interpretation:
+      data.interpretations[selectedDate] ?? data.interpretation,
+  };
+}
+
+function retainBoundedForecastContextCache(): void {
+  while (forecastContextCache.size > FORECAST_CONTEXT_CACHE_MAX_ENTRIES) {
+    const oldestKey = forecastContextCache.keys().next().value as
+      | string
+      | undefined;
+    if (!oldestKey) return;
+    forecastContextCache.delete(oldestKey);
+  }
+}
 
 function spotInput(spot: Spot) {
   return {
@@ -196,6 +241,61 @@ export async function getForecastContext(
     interpretations,
     orientationVerified: false,
   };
+}
+
+/**
+ * Best-effort per-process cache for the normalized, evaluated browser context.
+ * Durable five-minute timelines remain in the private Supabase cache; this
+ * short layer only avoids rebuilding identical UI projections and species
+ * enrichment during rapid navigation or concurrent requests.
+ */
+export async function getCachedForecastContext(
+  spot: Spot,
+  selectedDate: string,
+  now: Date = new Date()
+): Promise<{
+  data: ForecastContextResponse;
+  cacheStatus: ForecastContextCacheStatus;
+}> {
+  const startDate = todayProductDate(now);
+  const key = forecastContextCacheKey(spot.id, startDate);
+  const cached = forecastContextCache.get(key);
+  if (cached && cached.expiresAt > now.getTime()) {
+    forecastContextCache.delete(key);
+    forecastContextCache.set(key, cached);
+    return {
+      data: selectContextDate(cached.data, selectedDate),
+      cacheStatus: 'hit',
+    };
+  }
+  if (cached) forecastContextCache.delete(key);
+
+  const existing = forecastContextInFlight.get(key);
+  if (existing) {
+    return {
+      data: selectContextDate(await existing, selectedDate),
+      cacheStatus: 'coalesced',
+    };
+  }
+
+  const request = getForecastContext(spot, startDate, now);
+  forecastContextInFlight.set(key, request);
+  try {
+    const data = await request;
+    forecastContextCache.set(key, {
+      data,
+      expiresAt: now.getTime() + FORECAST_CONTEXT_CACHE_TTL_MS,
+    });
+    retainBoundedForecastContextCache();
+    return {
+      data: selectContextDate(data, selectedDate),
+      cacheStatus: 'miss',
+    };
+  } finally {
+    if (forecastContextInFlight.get(key) === request) {
+      forecastContextInFlight.delete(key);
+    }
+  }
 }
 
 function nearestPeriod(

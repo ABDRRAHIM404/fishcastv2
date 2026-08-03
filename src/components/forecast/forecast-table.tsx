@@ -44,15 +44,50 @@ interface RowDefinition {
   render: (period: ForecastPeriod) => { value: string; detail?: string };
 }
 
+function missingInputCell(period: ForecastPeriod): {
+  value: string;
+  detail: string;
+} {
+  const missing = period.confidence.missingInputs;
+  const critical = period.confidence.missingCriticalInputs;
+  return {
+    value: missing.length === 0 ? 'None' : missing.join(', '),
+    detail:
+      critical.length === 0
+        ? 'No critical inputs missing'
+        : `Critical: ${critical.join(', ')}`,
+  };
+}
+
+function safetyWarningCell(period: ForecastPeriod): {
+  value: string;
+  detail: string;
+} {
+  const warnings = period.safety.warnings;
+  return {
+    value: period.safety.primaryWarning ?? 'No active warning',
+    detail:
+      warnings.length === 0
+        ? 'Deterministic safety checks found no warning'
+        : `${warnings.length} warning${warnings.length === 1 ? '' : 's'} across the interval`,
+  };
+}
+
 const ROWS: RowDefinition[] = [
   { id: 'score', group: 'fishing', label: 'Fishing score', compact: true, render: (period) => ({ value: `${period.fishing.score}/100`, detail: period.fishing.label }) },
   { id: 'confidence', group: 'fishing', label: 'Confidence', compact: true, helpKey: 'confidence', render: (period) => ({ value: `${period.confidence.completenessPercentage}%`, detail: `${period.confidence.label} confidence` }) },
+  { id: 'fishing-context', group: 'fishing', label: 'Main conditions', compact: false, render: (period) => ({ value: `${windLabel(period.wind.speedKmh)} wind`, detail: `${waveHeightLabel(period.waves.heightM, period.waves.derived.seaState)} · ${wavePeriodLabel(period.waves.periodS)}` }) },
   { id: 'species', group: 'fishing', label: 'Best species', compact: false, render: (period) => ({ value: period.bestSpecies ?? 'Not available', detail: period.bestSpecies ? 'Matched and in season' : 'No supported match' }) },
   { id: 'technique', group: 'fishing', label: 'Technique', compact: false, render: () => ({ value: 'Not available', detail: 'No verified technique dataset' }) },
-  { id: 'note', group: 'fishing', label: 'FishCast note', compact: true, render: (period) => ({ value: period.note }) },
+  { id: 'fishing-missing', group: 'fishing', label: 'Missing inputs', compact: false, render: missingInputCell },
+  { id: 'note', group: 'fishing', label: 'Recommendation', compact: true, render: (period) => ({ value: period.note, detail: 'Deterministic FishCast guidance' }) },
   { id: 'safety', group: 'safety', label: 'Safety status', compact: true, render: (period) => ({ value: period.safety.status, detail: period.safety.primaryWarning ?? 'No active warning' }) },
   { id: 'safety-score', group: 'safety', label: 'Safety score', compact: false, render: (period) => ({ value: period.safety.score === null ? '—' : `${period.safety.score}/100`, detail: period.safety.containsDangerous ? 'Contains a Dangerous interval' : 'Worst state across interval' }) },
+  { id: 'safety-warning', group: 'safety', label: 'Main reasons', compact: false, render: safetyWarningCell },
+  { id: 'safety-confidence', group: 'safety', label: 'Confidence', compact: false, helpKey: 'confidence', render: (period) => ({ value: `${period.confidence.completenessPercentage}%`, detail: `${period.confidence.label} confidence` }) },
+  { id: 'safety-missing', group: 'safety', label: 'Missing inputs', compact: false, render: missingInputCell },
   { id: 'quality', group: 'safety', label: 'Value source', compact: false, helpKey: 'interpolated', render: (period) => ({ value: dataQualityLabel(period.dataQuality), detail: 'Safety checked across full interval' }) },
+  { id: 'safety-recommendation', group: 'safety', label: 'Recommendation', compact: false, render: (period) => ({ value: period.safety.status === 'Safe' ? 'Continue local checks' : period.note, detail: period.safety.status === 'Safe' ? 'Verify access, surf and conditions at the shore' : 'Safety overrides fishing quality and best-window markers' }) },
   { id: 'wind', group: 'wind', label: 'Wind', compact: true, helpKey: 'windRelationship', render: (period) => ({ value: formatValue(period.wind.speedKmh, ' km/h'), detail: `${windLabel(period.wind.speedKmh)} · ${period.wind.relationship}` }) },
   { id: 'gust', group: 'wind', label: 'Gusts', compact: true, render: (period) => ({ value: formatValue(period.wind.gustKmh, ' km/h'), detail: gustLabel(period.wind.gustKmh) }) },
   { id: 'wind-direction', group: 'wind', label: 'Direction', compact: false, render: (period) => ({ value: `${directionArrowFrom(period.wind.directionDeg)} ${compassLabel(period.wind.directionDeg)}`, detail: period.wind.directionDeg === null ? 'Unavailable' : `${Math.round(period.wind.directionDeg)}° from` }) },
@@ -78,8 +113,8 @@ const ROWS: RowDefinition[] = [
 ];
 
 const GROUP_LABELS: Readonly<Record<ForecastTableGroup, string>> = {
-  fishing: 'Fishing',
-  safety: 'Safety',
+  fishing: 'Fishing Score',
+  safety: 'Safety Score',
   wind: 'Wind',
   waves: 'Waves and swell',
   tide: 'Tide',
@@ -167,6 +202,14 @@ export function ForecastTable({ periods, selectedTimestamp, onSelectTimestamp }:
         : ROWS,
     [preference.mode]
   );
+  const renderedRows = useMemo(
+    () =>
+      visibleRows.map((row) => ({
+        definition: row,
+        cells: periods.map((period) => row.render(period)),
+      })),
+    [periods, visibleRows]
+  );
 
   function setMode(mode: ForecastTableMode) {
     setPreference((current) => ({ ...current, mode }));
@@ -190,12 +233,12 @@ export function ForecastTable({ periods, selectedTimestamp, onSelectTimestamp }:
       )}
     >
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2 px-3 pt-3 sm:px-0 sm:pt-0">
-        <div className="flex rounded-lg border border-border p-1" role="group" aria-label="Forecast table detail">
+        <div className="flex gap-1 overflow-x-auto rounded-lg border border-border/70 bg-background/35 p-1" role="group" aria-label="Forecast table detail">
           {(['compact', 'detailed'] as const).map((mode) => (
-            <button key={mode} type="button" aria-pressed={preference.mode === mode} onClick={() => setMode(mode)} className={cn('min-h-10 rounded-md px-4 text-sm capitalize focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring', preference.mode === mode ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground')}>{mode}</button>
+            <Button key={mode} type="button" size="sm" variant={preference.mode === mode ? 'controlActive' : 'control'} aria-pressed={preference.mode === mode} onClick={() => setMode(mode)} className="shrink-0 capitalize">{mode}</Button>
           ))}
         </div>
-        <Button type="button" variant="outline" size="sm" className="min-h-10" onClick={() => setFullScreen((value) => !value)} aria-pressed={fullScreen}>
+        <Button type="button" variant={fullScreen ? 'controlActive' : 'control'} size="sm" onClick={() => setFullScreen((value) => !value)} aria-pressed={fullScreen}>
           {fullScreen ? <Minimize2 aria-hidden /> : <Maximize2 aria-hidden />}
           {fullScreen ? 'Exit full screen' : 'Full-screen table'}
         </Button>
@@ -218,7 +261,7 @@ export function ForecastTable({ periods, selectedTimestamp, onSelectTimestamp }:
                       {period.recommended ? <Star className="size-3.5 fill-current text-condition-good" aria-label="Recommended window" /> : null}
                       <span title={period.dataQualityLabel} className="rounded bg-muted px-1 text-muted-foreground">{sourceMarker(period)}</span>
                     </span>
-                    <button type="button" className="mt-1 min-h-8 rounded px-2 text-xs font-normal text-muted-foreground hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => onSelectTimestamp(period.start)} aria-label={`Select ${formatTimeLabel(period.start)}`}>Select</button>
+                    <Button type="button" size="sm" variant={selectedTimestamp === period.start ? 'controlActive' : 'control'} className="mt-1 min-h-11 px-2 text-xs font-normal" onClick={() => onSelectTimestamp(period.start)} aria-pressed={selectedTimestamp === period.start} aria-label={`Select ${formatTimeLabel(period.start)}`}>Select</Button>
                   </th>
                 );
               })}
@@ -226,29 +269,31 @@ export function ForecastTable({ periods, selectedTimestamp, onSelectTimestamp }:
           </thead>
           <tbody>
             {FORECAST_TABLE_GROUPS.map((group) => {
-              const rows = visibleRows.filter((row) => row.group === group);
+              const rows = renderedRows.filter(
+                (row) => row.definition.group === group
+              );
               if (rows.length === 0) return null;
               const expanded = preference.expandedGroups.has(group);
               return (
                 <Fragment key={group}>
                   <tr>
                     <th colSpan={periods.length + 1} className="sticky left-0 border-b border-t-2 border-border bg-secondary/55 p-0 text-left">
-                      <button type="button" aria-expanded={expanded} onClick={() => toggleGroup(group)} className="flex min-h-12 w-full items-center gap-2 px-3 py-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring">
+                      <Button type="button" size="sm" variant={expanded ? 'controlActive' : 'control'} aria-expanded={expanded} onClick={() => toggleGroup(group)} className="min-h-12 w-full justify-start rounded-none border-0 px-3 py-2 text-left focus-visible:ring-inset focus-visible:ring-offset-0">
                         {expanded ? <ChevronDown className="size-4 shrink-0 text-primary" aria-hidden /> : <ChevronRight className="size-4 shrink-0 text-primary" aria-hidden />}
                         <span className="font-medium">{GROUP_LABELS[group]}</span>
                         <span className="truncate text-sm font-normal text-muted-foreground">{groupSummary(group, selectedPeriod)}</span>
-                      </button>
+                      </Button>
                     </th>
                   </tr>
                   {expanded
                     ? rows.map((row) => (
-                        <tr key={row.id}>
-                          <th scope="row" className="sticky left-0 z-10 w-[6.5rem] min-w-[6.5rem] border-b border-r border-border bg-card px-3 py-3 text-left text-sm font-medium sm:w-40 sm:min-w-40"><span className="inline-flex items-center gap-1.5">{row.label}{row.helpKey ? <ForecastHelp helpKey={row.helpKey} /> : null}</span></th>
+                        <tr key={row.definition.id}>
+                          <th scope="row" className="sticky left-0 z-10 w-[6.5rem] min-w-[6.5rem] border-b border-r border-border bg-card px-3 py-3 text-left text-sm font-medium sm:w-40 sm:min-w-40"><span className="inline-flex items-center gap-1.5">{row.definition.label}{row.definition.helpKey ? <ForecastHelp helpKey={row.definition.helpKey} /> : null}</span></th>
                           {periods.map((period, index) => {
-                            const cell = row.render(period);
+                            const cell = row.cells[index]!;
                             const newDay = index > 0 && periods[index - 1]?.date !== period.date;
                             return (
-                              <td key={`${row.id}-${period.start}`} title={row.id === 'safety' ? period.note : undefined} className={cn('border-b border-border/50 px-2 py-3 text-center align-top text-sm', newDay && 'border-l-2 border-l-primary/30', period.recommended && 'bg-condition-good/5', selectedTimestamp === period.start && 'bg-primary/10', period.safety.containsDangerous && row.group === 'safety' && 'bg-destructive/20')}>
+                              <td key={`${row.definition.id}-${period.start}`} title={row.definition.id === 'safety' ? period.note : undefined} className={cn('border-b border-border/50 px-2 py-3 text-center align-top text-sm', newDay && 'border-l-2 border-l-primary/30', period.recommended && 'bg-condition-good/5', selectedTimestamp === period.start && 'bg-primary/10', period.safety.containsDangerous && row.definition.group === 'safety' && 'bg-destructive/20')}>
                                 <span className={cn('block font-medium tabular-nums', cell.value === '—' && 'text-muted-foreground')}>{cell.value}</span>
                                 {cell.detail ? <span className="mx-auto mt-1 block max-w-32 whitespace-normal text-xs leading-snug text-muted-foreground">{cell.detail}</span> : null}
                               </td>

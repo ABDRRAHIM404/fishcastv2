@@ -8,19 +8,19 @@ export type ForecastTableGroup =
   | 'environment';
 
 export const FORECAST_TABLE_GROUPS: readonly ForecastTableGroup[] = [
-  'fishing',
-  'safety',
   'wind',
   'waves',
   'tide',
   'environment',
+  'fishing',
+  'safety',
 ] as const;
 
 export const MOBILE_DEFAULT_EXPANDED_GROUPS: readonly ForecastTableGroup[] = [
-  'fishing',
-  'safety',
   'wind',
   'waves',
+  'fishing',
+  'safety',
 ] as const;
 
 export interface ForecastTablePreference {
@@ -69,4 +69,3 @@ export function parseForecastTablePreference(
     return fallback;
   }
 }
-

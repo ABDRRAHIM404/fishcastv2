@@ -1,9 +1,13 @@
 import { cloneElement, forwardRef, isValidElement, type ReactElement } from 'react';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { cn } from '@/lib/utils';
+import {
+  CONTROL_TOUCH_SIZE_CLASSES,
+  CONTROL_VARIANT_CLASSES,
+} from '@/lib/ui/control-state';
 
 const buttonVariants = cva(
-  'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-50 [&_svg]:size-4 [&_svg]:shrink-0',
+  'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-[background-color,border-color,color,box-shadow,opacity,transform] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background active:translate-y-px disabled:cursor-not-allowed disabled:opacity-50 disabled:active:translate-y-0 aria-busy:cursor-wait aria-busy:opacity-75 [&_svg]:size-4 [&_svg]:shrink-0',
   {
     variants: {
       variant: {
@@ -15,12 +19,14 @@ const buttonVariants = cva(
           'border border-border bg-transparent hover:bg-secondary/60 hover:text-foreground',
         ghost: 'hover:bg-secondary/60 hover:text-foreground',
         link: 'text-primary underline-offset-4 hover:underline',
+        control: CONTROL_VARIANT_CLASSES.inactive,
+        controlActive: CONTROL_VARIANT_CLASSES.active,
       },
       size: {
-        default: 'h-10 px-5 py-2',
-        sm: 'h-9 rounded-md px-4',
-        lg: 'h-12 rounded-lg px-8 text-base',
-        icon: 'h-10 w-10',
+        default: CONTROL_TOUCH_SIZE_CLASSES.default,
+        sm: CONTROL_TOUCH_SIZE_CLASSES.small,
+        lg: CONTROL_TOUCH_SIZE_CLASSES.large,
+        icon: CONTROL_TOUCH_SIZE_CLASSES.icon,
       },
     },
     defaultVariants: { variant: 'default', size: 'default' },

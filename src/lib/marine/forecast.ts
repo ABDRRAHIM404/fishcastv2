@@ -2,6 +2,7 @@ import 'server-only';
 import { buildUrl, fetchJson } from '@/lib/marine/http';
 import { OPEN_METEO_FORECAST_URL } from '@/lib/marine/constants';
 import { fetchOpenMeteoMarine } from '@/lib/waves/client';
+import { createRequestReuse } from '@/lib/marine/request-reuse';
 import {
   openMeteoTimeToIso,
   toModelledSeaLevelPoints,
@@ -67,6 +68,9 @@ interface RawOpenMeteoForecast {
   };
 }
 
+const reuseHourlyForecastRequest =
+  createRequestReuse<RawOpenMeteoForecast>();
+
 function numericArray(
   value: (number | null)[] | undefined
 ): (number | null)[] {
@@ -102,7 +106,9 @@ export async function fetchHourlyForecast(
     forecast_days: 7,
     timeformat: 'unixtime',
   });
-  const raw = await fetchJson<RawOpenMeteoForecast>(url);
+  const raw = await reuseHourlyForecastRequest(url, () =>
+    fetchJson<RawOpenMeteoForecast>(url)
+  );
   const h = raw.hourly ?? {};
   const fetchedAt = new Date().toISOString();
   return {

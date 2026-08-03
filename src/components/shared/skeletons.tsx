@@ -52,10 +52,23 @@ export function MarineConditionsSkeleton({ count = 4 }: { count?: number }) {
 }
 
 /** Premium skeleton mirroring the spot details page layout. */
-export function SpotDetailsSkeleton() {
+export function SpotDetailsSkeleton({
+  spotName,
+  message = 'Loading spot details and forecast…',
+}: {
+  spotName?: string;
+  message?: string;
+} = {}) {
   return (
-    <div className="space-y-5">
-      <Skeleton className="h-60 w-full rounded-2xl sm:h-80 lg:h-[28rem]" />
+    <div className="space-y-5" aria-busy="true">
+      {spotName ? (
+        <div className="flex h-60 w-full flex-col justify-end rounded-2xl border border-border/70 bg-gradient-to-br from-secondary/70 via-card to-background p-5 sm:h-80 sm:p-6 lg:h-[28rem]">
+          <h1 className="font-display text-h1 sm:text-display">{spotName}</h1>
+          <p className="mt-2 flex items-center gap-2 text-sm text-muted-foreground"><span className="size-2 animate-pulse rounded-full bg-primary" aria-hidden />{message}</p>
+        </div>
+      ) : (
+        <Skeleton className="h-60 w-full rounded-2xl sm:h-80 lg:h-[28rem]" />
+      )}
       <Skeleton className="h-14 w-full rounded-xl" />
       <div className="grid gap-3 sm:grid-cols-2">
         {Array.from({ length: 2 }).map((_, index) => (
@@ -76,6 +89,7 @@ export function SpotDetailsSkeleton() {
           <Skeleton key={index} className="h-12 w-full rounded-md" />
         ))}
       </div>
+      <span className="sr-only" role="status">{message}</span>
     </div>
   );
 }

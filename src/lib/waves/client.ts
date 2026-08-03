@@ -1,6 +1,7 @@
 import 'server-only';
 import { buildUrl, fetchJson } from '@/lib/marine/http';
 import { OPEN_METEO_MARINE_URL } from '@/lib/marine/constants';
+import { createRequestReuse } from '@/lib/marine/request-reuse';
 
 /** Raw Open-Meteo Marine payload (subset). Internal only. */
 export interface OpenMeteoMarineResponse {
@@ -68,12 +69,7 @@ const HOURLY_FIELDS = [
   'ocean_current_direction',
   'sea_level_height_msl',
 ].join(',');
-const RESPONSE_REUSE_MS = 60 * 1000;
-const inFlight = new Map<string, Promise<OpenMeteoMarineResponse>>();
-const recent = new Map<
-  string,
-  { data: OpenMeteoMarineResponse; expiresAt: number }
->();
+const reuseMarineRequest = createRequestReuse<OpenMeteoMarineResponse>();
 
 /**
  * One shared Open-Meteo Marine request supplies current waves plus the native
@@ -98,20 +94,7 @@ export async function fetchOpenMeteoMarine(
     timeformat: 'unixtime',
   });
 
-  const cached = recent.get(url);
-  if (cached && cached.expiresAt > Date.now()) return cached.data;
-  if (cached) recent.delete(url);
-
-  const existing = inFlight.get(url);
-  if (existing) return existing;
-
-  const request = fetchJson<OpenMeteoMarineResponse>(url);
-  inFlight.set(url, request);
-  try {
-    const data = await request;
-    recent.set(url, { data, expiresAt: Date.now() + RESPONSE_REUSE_MS });
-    return data;
-  } finally {
-    inFlight.delete(url);
-  }
+  return reuseMarineRequest(url, () =>
+    fetchJson<OpenMeteoMarineResponse>(url)
+  );
 }

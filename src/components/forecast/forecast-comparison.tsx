@@ -44,10 +44,10 @@ export function ForecastComparison({ date, time }: { date: string; time: string 
     );
   }
   if (state.status === 'loading') {
-    return <p className="rounded-lg border border-border p-5 text-sm text-muted-foreground" role="status">Comparing cached forecasts across all spots…</p>;
+    return <p className="flex min-h-16 items-center rounded-lg border border-primary/30 bg-primary/5 p-5 text-sm text-muted-foreground" role="status" aria-busy="true">Comparing cached forecasts across all spots…</p>;
   }
   if (state.status === 'error') {
-    return <div className="rounded-lg border border-destructive/40 p-5"><p className="text-sm">Comparison failed: {state.message}</p><Button type="button" variant="outline" size="sm" className="mt-3" onClick={() => void load()}><RotateCw aria-hidden />Retry</Button></div>;
+    return <div className="rounded-lg border border-destructive/40 p-5"><p className="text-sm">Comparison could not be refreshed. Other forecast information remains available.</p><Button type="button" variant="control" size="sm" className="mt-3" onClick={() => void load()}><RotateCw aria-hidden />Retry comparison</Button></div>;
   }
   return (
     <div className="overflow-x-auto rounded-lg border border-border/70">

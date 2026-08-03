@@ -19,6 +19,7 @@ import type {
 import { formatValue, wavePeriodLabel, windLabel } from '@/lib/forecast-ui/labels';
 import { formatDaySectionLabel, formatTimeLabel } from '@/lib/timeline/format';
 import { cn } from '@/lib/utils';
+import { isUrgentSafetyStatus } from '@/lib/forecast-ui/presentation';
 
 interface Props {
   day: ForecastDailySummary;
@@ -39,8 +40,7 @@ export function ForecastOverview({
   onOpenSpecies,
   onOpenGuide,
 }: Props) {
-  const safetyDominant =
-    day.safety.status === 'Dangerous' || day.safety.status === 'Unknown';
+  const safetyDominant = isUrgentSafetyStatus(day.safety.status);
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -121,7 +121,7 @@ export function ForecastOverview({
             <p className="text-sm text-muted-foreground">At {current ? formatTimeLabel(current.start) : '—'}</p>
             <h3 id="current-conditions-title" className="font-display text-h3">Current conditions</h3>
           </div>
-          <Button type="button" variant="ghost" size="sm" onClick={() => onOpenForecast('timeline')}>Open timeline</Button>
+          <Button type="button" variant="control" size="sm" onClick={() => onOpenForecast('timeline')}>Open timeline</Button>
         </div>
         <dl className="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-4">
           <div className="rounded-xl border border-border p-4"><dt className="flex items-center gap-2 text-sm text-muted-foreground"><Wind className="size-4 text-primary" aria-hidden />Wind</dt><dd className="mt-2 text-base font-semibold tabular-nums">{formatValue(current?.wind.speedKmh ?? null, ' km/h')}</dd><dd className="text-sm text-muted-foreground">{windLabel(current?.wind.speedKmh ?? null)}</dd></div>
@@ -139,10 +139,10 @@ export function ForecastOverview({
 
       <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5" aria-label="Spot actions">
         <Button type="button" className="min-h-12" onClick={() => onOpenForecast('table')}><CalendarDays aria-hidden />Detailed forecast</Button>
-        <Button type="button" className="min-h-12" variant="outline" onClick={() => onOpenForecast('graph')}><BarChart3 aria-hidden />View graphs</Button>
-        <Button type="button" className="min-h-12" variant="outline" onClick={onOpenSpecies}><Fish aria-hidden />Species</Button>
-        <Button type="button" className="min-h-12" variant="outline" onClick={onOpenGuide}><BookOpen aria-hidden />Spot guide</Button>
-        <Button type="button" className="min-h-12" variant="outline" onClick={() => onOpenForecast('table', true)}><Waves aria-hidden />Compare spots</Button>
+        <Button type="button" className="min-h-12" variant="control" onClick={() => onOpenForecast('graph')}><BarChart3 aria-hidden />View graphs</Button>
+        <Button type="button" className="min-h-12" variant="control" onClick={onOpenSpecies}><Fish aria-hidden />Species</Button>
+        <Button type="button" className="min-h-12" variant="control" onClick={onOpenGuide}><BookOpen aria-hidden />Spot guide</Button>
+        <Button type="button" className="min-h-12" variant="control" onClick={() => onOpenForecast('table', true)}><Waves aria-hidden />Compare spots</Button>
       </div>
     </div>
   );

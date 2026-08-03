@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   CartesianGrid,
   Line,
@@ -15,9 +15,9 @@ import type {
   ForecastGraphCategory,
   ForecastPeriod,
 } from '@/lib/forecast-ui/types';
+import { Button } from '@/components/ui/button';
 import { compassLabel, directionArrowFrom } from '@/lib/forecast-ui/labels';
 import { formatTimeLabel } from '@/lib/timeline/format';
-import { cn } from '@/lib/utils';
 
 const CATEGORIES: Array<{ id: ForecastGraphCategory; label: string }> = [
   { id: 'fishing', label: 'Fishing' },
@@ -186,20 +186,20 @@ function panels(category: ForecastGraphCategory, data: GraphDatum[], selectedLab
 
 export function ForecastGraphs({ periods, selectedTimestamp, onSelectTimestamp }: { periods: ForecastPeriod[]; selectedTimestamp: string | null; onSelectTimestamp: (timestamp: string) => void }) {
   const [category, setCategory] = useState<ForecastGraphCategory>('fishing');
-  const data = graphData(periods);
+  const data = useMemo(() => graphData(periods), [periods]);
   const selectedLabel = data.find((item) => item.time === selectedTimestamp)?.label ?? null;
   return (
     <div>
       <div className="mb-4 flex gap-1 overflow-x-auto pb-1" role="tablist" aria-label="Forecast graph category">
         {CATEGORIES.map((item) => (
-          <button key={item.id} type="button" role="tab" aria-selected={category === item.id} onClick={() => setCategory(item.id)} className={cn('min-h-11 rounded-md px-4 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring', category === item.id ? 'bg-primary text-primary-foreground' : 'bg-secondary text-muted-foreground hover:text-foreground')}>
+          <Button key={item.id} type="button" role="tab" size="sm" variant={category === item.id ? 'controlActive' : 'control'} aria-selected={category === item.id} onClick={() => setCategory(item.id)} className="shrink-0">
             {item.label}
-          </button>
+          </Button>
         ))}
       </div>
       <label className="mb-4 block max-w-xs text-sm">
         <span className="mb-1 block text-muted-foreground">Selected graph time</span>
-        <select value={selectedTimestamp && periods.some((period) => period.start === selectedTimestamp) ? selectedTimestamp : periods[0]?.start ?? ''} onChange={(event) => onSelectTimestamp(event.target.value)} className="min-h-11 w-full rounded-md border border-input bg-background px-3">
+        <select value={selectedTimestamp && periods.some((period) => period.start === selectedTimestamp) ? selectedTimestamp : periods[0]?.start ?? ''} onChange={(event) => onSelectTimestamp(event.target.value)} className="min-h-11 w-full cursor-pointer rounded-md border border-border/90 bg-card/55 px-3 shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
           {periods.map((period) => <option key={period.start} value={period.start}>{period.date.slice(5)} · {formatTimeLabel(period.start)}</option>)}
         </select>
       </label>

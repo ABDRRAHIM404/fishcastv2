@@ -1,4 +1,5 @@
 import 'server-only';
+import { cache } from 'react';
 import { createClient } from '@/lib/supabase/server';
 import { mapSpotRow, type RawSpotRow } from '@/lib/spots/mapper';
 import type { Spot } from '@/types/spot';
@@ -14,7 +15,7 @@ import type { Spot } from '@/types/spot';
  */
 
 /** Returns all active spots, ordered by name. */
-export async function getActiveSpots(): Promise<Spot[]> {
+export const getActiveSpots = cache(async function getActiveSpots(): Promise<Spot[]> {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from('spots')
@@ -29,10 +30,12 @@ export async function getActiveSpots(): Promise<Spot[]> {
     .map(mapSpotRow)
     .filter((spot): spot is Spot => spot !== null)
     .filter((spot) => spot.active);
-}
+});
 
 /** Returns a single active spot by its public slug, or null if not found. */
-export async function getSpotBySlug(slug: string): Promise<Spot | null> {
+export const getSpotBySlug = cache(async function getSpotBySlug(
+  slug: string
+): Promise<Spot | null> {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from('spots')
@@ -44,4 +47,4 @@ export async function getSpotBySlug(slug: string): Promise<Spot | null> {
 
   const spot = mapSpotRow(data as RawSpotRow);
   return spot && spot.active ? spot : null;
-}
+});

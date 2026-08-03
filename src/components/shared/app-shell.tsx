@@ -61,12 +61,12 @@ function NavigationLink({
       aria-label={item.title}
       title={item.title}
       className={cn(
-        'flex min-h-11 items-center gap-3 rounded-lg px-3 text-sm font-medium text-muted-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+        'flex min-h-11 items-center gap-3 rounded-lg border px-3 text-sm font-medium text-muted-foreground shadow-sm transition-[background-color,border-color,color,transform] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:translate-y-px',
         'justify-center xl:justify-start',
         compact && 'px-2 xl:justify-center',
         active
-          ? 'bg-primary/15 text-primary'
-          : 'hover:bg-secondary/70 hover:text-foreground'
+          ? 'border-primary/65 bg-primary/20 text-primary'
+          : 'border-transparent bg-card/30 hover:border-primary/40 hover:bg-secondary/70 hover:text-foreground'
       )}
     >
       <Icon className="size-5 shrink-0" aria-hidden />
@@ -197,7 +197,7 @@ export function AppShell({
           <button
             type="button"
             onClick={() => setCollapsed((value) => !value)}
-            className="hidden min-h-11 items-center justify-center gap-2 rounded-lg text-sm text-muted-foreground hover:bg-secondary/70 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring xl:flex"
+            className="hidden min-h-11 items-center justify-center gap-2 rounded-lg border border-border/80 bg-card/35 px-3 text-sm text-muted-foreground shadow-sm hover:border-primary/45 hover:bg-secondary/70 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:translate-y-px xl:flex"
             aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           >
             {collapsed ? <ChevronRight aria-hidden /> : <ChevronLeft aria-hidden />}
@@ -282,8 +282,8 @@ export function AppShell({
                   href={item.href}
                   aria-current={active ? 'page' : undefined}
                   className={cn(
-                    'flex min-h-11 flex-col items-center justify-center gap-0.5 rounded-md text-[0.7rem] font-medium text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                    active && 'text-primary'
+                    'm-1 flex min-h-11 flex-col items-center justify-center gap-0.5 rounded-md border border-transparent text-[0.7rem] font-medium text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:translate-y-px',
+                    active && 'border-primary/45 bg-primary/15 text-primary'
                   )}
                 >
                   <Icon className="size-5" aria-hidden />
@@ -298,8 +298,8 @@ export function AppShell({
               aria-controls="mobile-more-menu"
               onClick={() => setMoreOpen(true)}
               className={cn(
-                'flex min-h-11 flex-col items-center justify-center gap-0.5 rounded-md text-[0.7rem] font-medium text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                mobileMoreActive && 'text-primary'
+                'm-1 flex min-h-11 flex-col items-center justify-center gap-0.5 rounded-md border border-transparent text-[0.7rem] font-medium text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:translate-y-px',
+                mobileMoreActive && 'border-primary/45 bg-primary/15 text-primary'
               )}
             >
               <Menu className="size-5" aria-hidden />

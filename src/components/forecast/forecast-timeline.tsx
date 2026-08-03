@@ -39,9 +39,9 @@ export function ForecastTimeline({ periods, selectedTimestamp, onSelectTimestamp
           <h3 className="mt-1 font-display text-h3">{formatDaySectionLabel(active.date)} · {formatTimeLabel(active.start)}</h3>
         </div>
         <div className="flex gap-2">
-          <Button type="button" size="icon" variant="outline" className="min-h-11 min-w-11" aria-label="Previous 30-minute period" disabled={index === 0} onClick={() => setIndex(Math.max(0, index - 1))}><ChevronLeft aria-hidden /></Button>
-          <Button type="button" variant="outline" className="min-h-11" onClick={() => setIndex(nowIndex)} disabled={!periods.some((period) => period.markers.currentTime)}><LocateFixed aria-hidden />Now</Button>
-          <Button type="button" size="icon" variant="outline" className="min-h-11 min-w-11" aria-label="Next 30-minute period" disabled={index >= periods.length - 1} onClick={() => setIndex(Math.min(periods.length - 1, index + 1))}><ChevronRight aria-hidden /></Button>
+          <Button type="button" size="icon" variant="control" aria-label="Previous 30-minute period" disabled={index === 0} onClick={() => setIndex(Math.max(0, index - 1))}><ChevronLeft aria-hidden /></Button>
+          <Button type="button" variant={active.markers.currentTime ? 'controlActive' : 'control'} aria-pressed={active.markers.currentTime} onClick={() => setIndex(nowIndex)} disabled={!periods.some((period) => period.markers.currentTime)}><LocateFixed aria-hidden />Now</Button>
+          <Button type="button" size="icon" variant="control" aria-label="Next 30-minute period" disabled={index >= periods.length - 1} onClick={() => setIndex(Math.min(periods.length - 1, index + 1))}><ChevronRight aria-hidden /></Button>
         </div>
       </div>
 

@@ -1,6 +1,7 @@
 import 'server-only';
 import { buildUrl, fetchJson } from '@/lib/marine/http';
 import { OPEN_METEO_FORECAST_URL } from '@/lib/marine/constants';
+import { createRequestReuse } from '@/lib/marine/request-reuse';
 
 /**
  * Raw Open-Meteo forecast payload (subset we consume). Kept internal so the
@@ -38,6 +39,8 @@ const CURRENT_FIELDS = [
   'surface_pressure',
   'visibility',
 ].join(',');
+const reuseCurrentForecastRequest =
+  createRequestReuse<OpenMeteoForecastResponse>();
 
 export async function fetchOpenMeteoForecast(
   lat: number,
@@ -52,5 +55,7 @@ export async function fetchOpenMeteoForecast(
     forecast_days: 7,
     timeformat: 'unixtime',
   });
-  return fetchJson<OpenMeteoForecastResponse>(url);
+  return reuseCurrentForecastRequest(url, () =>
+    fetchJson<OpenMeteoForecastResponse>(url)
+  );
 }

@@ -24,7 +24,6 @@ import {
   type ForecastNavigationIntent,
   type SpotPageSection,
 } from '@/lib/spot-page/state';
-import { cn } from '@/lib/utils';
 import type { SpotSpecies } from '@/types/species';
 import type { Spot } from '@/types/spot';
 
@@ -69,10 +68,16 @@ export function SpotPageExperience({
   const [forecastIntent, setForecastIntent] =
     useState<ForecastNavigationIntent>({ token: 0 });
   const [aiOpen, setAiOpen] = useState(false);
+  const [pendingSpot, setPendingSpot] = useState<{
+    slug: string;
+    displayName: string;
+  } | null>(null);
   const displaySpot = {
     ...spot,
     name: publicSpotName(spot.slug, spot.name),
   };
+
+  useEffect(() => setPendingSpot(null), [spot.slug]);
 
   useEffect(() => {
     const syncFromUrl = () => {
@@ -145,7 +150,7 @@ export function SpotPageExperience({
 
   return (
     <PageTransition className="min-w-0 space-y-4 sm:space-y-6">
-      <SpotHero spot={displaySpot} />
+      <SpotHero spot={displaySpot} pendingSpotName={pendingSpot?.displayName} />
 
       <nav
         id="spot-section-navigation"
@@ -157,7 +162,7 @@ export function SpotPageExperience({
             const Icon = item.icon;
             const active = section === item.id;
             return (
-              <button
+              <Button
                 key={item.id}
                 id={`spot-tab-${item.id}`}
                 type="button"
@@ -166,14 +171,13 @@ export function SpotPageExperience({
                 aria-controls="spot-section-panel"
                 onClick={() => navigateSection(item.id)}
                 onKeyDown={(event) => handleTabKey(event, index)}
-                className={cn(
-                  'flex min-h-11 items-center gap-2 rounded-lg px-4 text-sm font-medium text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                  active ? 'bg-primary/15 text-primary' : 'hover:bg-secondary hover:text-foreground'
-                )}
+                size="sm"
+                variant={active ? 'controlActive' : 'control'}
+                className="shrink-0"
               >
                 <Icon className="size-4" aria-hidden />
                 {item.label}
-              </button>
+              </Button>
             );
           })}
         </div>
@@ -195,13 +199,14 @@ export function SpotPageExperience({
           spots={spots}
           navigationIntent={forecastIntent}
           onNavigate={(next, options) => navigateSection(next, options)}
+          onSpotSwitchStart={setPendingSpot}
         />
 
         <div hidden={section !== 'overview'} className="mt-5">
           <div className="rounded-xl border border-border/70 bg-card/40 p-4 sm:p-5">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div><div className="flex items-center gap-2"><Sparkles className="size-5 text-primary" aria-hidden /><h2 className="font-display text-h3">Optional AI advice</h2></div><p className="mt-1 text-sm text-muted-foreground">Gemini interpretation or deterministic fallback, kept separate from FishCast calculations.</p></div>
-              <Button type="button" variant="outline" onClick={() => setAiOpen((value) => !value)} aria-expanded={aiOpen}>{aiOpen ? 'Hide advice' : 'Load advice'}</Button>
+              <Button type="button" variant={aiOpen ? 'controlActive' : 'control'} onClick={() => setAiOpen((value) => !value)} aria-expanded={aiOpen}>{aiOpen ? 'Hide advice' : 'Load advice'}</Button>
             </div>
           </div>
           {aiOpen ? <div className="mt-3"><AiRecommendationCard spotId={spot.id} /></div> : null}

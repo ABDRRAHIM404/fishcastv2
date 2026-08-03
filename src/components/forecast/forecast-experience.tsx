@@ -1,8 +1,16 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useTransition } from 'react';
 import dynamic from 'next/dynamic';
-import { CalendarDays, ChevronLeft, ChevronRight, RotateCw } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import {
+  AlertTriangle,
+  CalendarDays,
+  ChevronLeft,
+  ChevronRight,
+  Loader2,
+  RotateCw,
+} from 'lucide-react';
 import { ForecastComparison } from '@/components/forecast/forecast-comparison';
 import { ForecastConditions } from '@/components/forecast/forecast-conditions';
 import { ForecastInsightPanel } from '@/components/forecast/forecast-insight-panel';
@@ -13,6 +21,11 @@ import { PremiumCard } from '@/components/spot/premium-card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useForecast } from '@/hooks/use-forecast';
+import {
+  forecastRefreshLabel,
+  primeBrowserForecast,
+  providerAvailability,
+} from '@/lib/forecast-ui/browser-cache';
 import type {
   ForecastInterval,
   ForecastScope,
@@ -21,6 +34,7 @@ import type {
 import { formatDaySectionLabel, formatTimeLabel } from '@/lib/timeline/format';
 import { wavePeriodLabel, weatherLabel, weatherSymbol, windLabel } from '@/lib/forecast-ui/labels';
 import { periodsForScope } from '@/lib/forecast-ui/query';
+import { isUrgentSafetyStatus } from '@/lib/forecast-ui/presentation';
 import { cn } from '@/lib/utils';
 import type {
   ForecastNavigationIntent,
@@ -76,6 +90,7 @@ interface Props {
     section: SpotPageSection,
     options?: { view?: ForecastView; comparison?: boolean }
   ) => void;
+  onSpotSwitchStart?: (spot: ForecastSpotOption) => void;
 }
 
 function isStoredPreference(value: unknown): value is {
@@ -102,13 +117,20 @@ export function ForecastExperience({
   spots,
   navigationIntent,
   onNavigate,
+  onSpotSwitchStart,
 }: Props) {
-  const { state, refetch } = useForecast(spotSlug, initialDate);
+  const router = useRouter();
+  const [isNavigatingSpot, startSpotNavigation] = useTransition();
+  const [activeSpotSlug, setActiveSpotSlug] = useState(spotSlug);
+  const { state, refetch, isSlow } = useForecast(activeSpotSlug, initialDate);
   const [selectedDate, setSelectedDate] = useState(initialDate);
   const [interval, setInterval] = useState(initialInterval);
   const [view, setView] = useState(initialView);
   const [scope, setScope] = useState(initialScope);
   const [selectedTimestamp, setSelectedTimestamp] = useState<string | null>(null);
+  const [preferenceLoaded, setPreferenceLoaded] = useState(false);
+
+  useEffect(() => setActiveSpotSlug(spotSlug), [spotSlug]);
 
   useEffect(() => {
     if (navigationIntent.token === 0) return;
@@ -135,16 +157,19 @@ export function ForecastExperience({
     } catch {
       // Corrupt preferences safely fall back to URL/default state.
     }
+    setPreferenceLoaded(true);
   }, []);
 
   useEffect(() => {
-    try {
-      localStorage.setItem(
-        PREFERENCE_KEY,
-        JSON.stringify({ version: 1, interval, view })
-      );
-    } catch {
-      // Private browsing/storage restrictions do not block the forecast.
+    if (preferenceLoaded) {
+      try {
+        localStorage.setItem(
+          PREFERENCE_KEY,
+          JSON.stringify({ version: 1, interval, view })
+        );
+      } catch {
+        // Private browsing/storage restrictions do not block the forecast.
+      }
     }
     const url = new URL(window.location.href);
     url.searchParams.set('date', selectedDate);
@@ -152,7 +177,7 @@ export function ForecastExperience({
     url.searchParams.set('view', view);
     url.searchParams.set('scope', scope);
     window.history.replaceState(null, '', url);
-  }, [interval, scope, selectedDate, view]);
+  }, [interval, preferenceLoaded, scope, selectedDate, view]);
 
   useEffect(() => {
     if (state.status !== 'ready') return;
@@ -222,6 +247,23 @@ export function ForecastExperience({
     ? formatTimeLabel(selectedDay.bestWindow.peakTime)
     : '12:00';
 
+  function switchSpot(nextSlug: string) {
+    if (nextSlug === activeSpotSlug) return;
+    const destination = spots.find((item) => item.slug === nextSlug);
+    if (!destination) return;
+    setActiveSpotSlug(nextSlug);
+    setSelectedTimestamp(null);
+    onSpotSwitchStart?.(destination);
+    primeBrowserForecast(nextSlug, selectedDate);
+    const url = new URL(window.location.href);
+    url.pathname = `/spots/${nextSlug}`;
+    url.searchParams.set('date', selectedDate);
+    url.searchParams.set('section', 'forecast');
+    startSpotNavigation(() => {
+      router.push(`${url.pathname}${url.search}`);
+    });
+  }
+
   if (mode === 'inactive') return null;
 
   if (state.status === 'loading') {
@@ -230,7 +272,7 @@ export function ForecastExperience({
         <Skeleton className="h-10 w-full" />
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-7">{Array.from({ length: 7 }).map((_, index) => <Skeleton key={index} className="h-24" />)}</div>
         <Skeleton className="h-72 w-full" />
-        <p className="sr-only" role="status">Loading seven-day fishing forecast</p>
+        <p className="flex items-center gap-2 text-sm text-muted-foreground" role="status"><Loader2 className="size-4 animate-spin text-primary" aria-hidden />{isSlow ? 'Getting the latest marine conditions…' : 'Loading marine conditions…'}</p>
       </PremiumCard>
     );
   }
@@ -247,34 +289,85 @@ export function ForecastExperience({
   const dayIndex = state.data.days.findIndex((day) => day.date === selectedDay.date);
   const interpretation =
     state.data.interpretations[selectedDay.date] ?? state.data.interpretation;
+  const availability = providerAvailability(state.data);
+  const refreshLabel = forecastRefreshLabel({
+    refreshing: state.refreshing,
+    sourceAgeMinutes: state.data.freshnessMinutes,
+    refreshFailed: state.refreshError !== null,
+  });
+  const statusPanel =
+    refreshLabel || availability.message || isNavigatingSpot ? (
+      <div
+        className={cn(
+          'flex flex-wrap items-center justify-between gap-3 rounded-xl border px-4 py-3 text-sm',
+          availability.status === 'unavailable' || state.refreshError
+            ? 'border-destructive/45 bg-destructive/10'
+            : 'border-primary/30 bg-primary/5'
+        )}
+        role="status"
+        aria-live="polite"
+      >
+        <div>
+          <p className="font-medium">
+            {isNavigatingSpot
+              ? `Updating ${spots.find((item) => item.slug === activeSpotSlug)?.displayName ?? 'spot'} forecast…`
+              : refreshLabel ?? 'Partial forecast data'}
+          </p>
+          {availability.message ? (
+            <p className="mt-0.5 text-muted-foreground">{availability.message}</p>
+          ) : null}
+          {state.refreshError ? (
+            <p className="mt-0.5 text-muted-foreground">{state.refreshError}</p>
+          ) : null}
+        </div>
+        {availability.status !== 'complete' || state.refreshError ? (
+          <Button type="button" size="sm" variant="control" onClick={refetch}>
+            <RotateCw aria-hidden />Retry unavailable data
+          </Button>
+        ) : null}
+      </div>
+    ) : null;
 
   if (mode === 'overview') {
     return (
-      <ForecastOverview
-        day={selectedDay}
-        current={selectedReadout ?? null}
-        interpretation={interpretation}
-        freshnessMinutes={state.data.freshnessMinutes}
-        onOpenForecast={(nextView, comparison) =>
-          onNavigate('forecast', { view: nextView, comparison })
-        }
-        onOpenSpecies={() => onNavigate('species')}
-        onOpenGuide={() => onNavigate('guide')}
-      />
+      <div className="space-y-4">
+        {statusPanel}
+        <ForecastOverview
+          day={selectedDay}
+          current={selectedReadout ?? null}
+          interpretation={interpretation}
+          freshnessMinutes={state.data.freshnessMinutes}
+          onOpenForecast={(nextView, comparison) =>
+            onNavigate('forecast', { view: nextView, comparison })
+          }
+          onOpenSpecies={() => onNavigate('species')}
+          onOpenGuide={() => onNavigate('guide')}
+        />
+      </div>
     );
   }
 
   if (mode === 'conditions') {
     return (
-      <ForecastConditions
-        period={selectedReadout ?? null}
-        freshnessMinutes={state.data.freshnessMinutes}
-      />
+      <div className="space-y-4">
+        {statusPanel}
+        <ForecastConditions
+          period={selectedReadout ?? null}
+          freshnessMinutes={state.data.freshnessMinutes}
+        />
+      </div>
     );
   }
 
   return (
     <div className="min-w-0 space-y-5">
+    {statusPanel}
+    {isUrgentSafetyStatus(selectedDay.safety.status) ? (
+      <div className="flex items-start gap-3 rounded-xl border border-destructive/60 bg-destructive/15 p-4" role="alert">
+        <AlertTriangle className="mt-0.5 size-5 shrink-0 text-condition-poor" aria-hidden />
+        <div><p className="font-semibold">Safety {selectedDay.safety.status}</p><p className="mt-1 text-sm">{selectedDay.safety.primaryWarning ?? 'Safety cannot be assessed from the available marine inputs.'}</p><p className="mt-1 text-xs text-muted-foreground">This warning overrides fishing scores and best-window recommendations.</p></div>
+      </div>
+    ) : null}
     <PremiumCard className="overflow-hidden p-4 sm:p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
@@ -283,26 +376,26 @@ export function ForecastExperience({
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <span className="rounded-full border border-border px-3 py-1 text-xs text-muted-foreground">Modelled data · not for navigation</span>
-          <Button asChild variant="outline" size="sm">
+          <Button asChild variant="control" size="sm">
             <a href="#spot-comparison">Compare spots</a>
           </Button>
         </div>
       </div>
 
       <div className="mt-5 grid gap-3 sm:grid-cols-2">
-        <label className="text-sm"><span className="mb-1 block text-muted-foreground">Fishing spot</span><select value={spotSlug} onChange={(event) => { const url = new URL(`/spots/${event.target.value}`, window.location.origin); url.search = window.location.search; window.location.assign(url); }} className="min-h-11 w-full rounded-md border border-input bg-background px-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{spots.map((spot) => <option key={spot.slug} value={spot.slug}>{spot.displayName}</option>)}</select></label>
+        <label className="text-sm"><span className="mb-1 block text-muted-foreground">Fishing spot</span><select value={activeSpotSlug} aria-busy={isNavigatingSpot} onChange={(event) => switchSpot(event.target.value)} className="min-h-11 w-full cursor-pointer rounded-md border border-border/90 bg-card/55 px-3 text-foreground shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring aria-busy:cursor-progress aria-busy:border-primary/60">{spots.map((spot) => <option key={spot.slug} value={spot.slug}>{spot.displayName}</option>)}</select></label>
         <label className="text-sm"><span className="mb-1 block text-muted-foreground">Forecast date</span><input type="date" value={selectedDate} min={state.data.range.startDate} max={state.data.range.endDate} onChange={(event) => setSelectedDate(event.target.value)} className="min-h-11 w-full rounded-md border border-input bg-background px-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" /></label>
       </div>
 
       <div className="mt-3 flex flex-wrap gap-2">
-        <Button type="button" variant="outline" className="min-h-11" disabled={dayIndex <= 0} onClick={() => setSelectedDate(state.data.days[dayIndex - 1]!.date)}><ChevronLeft aria-hidden />Previous</Button>
-        <Button type="button" variant="outline" className="min-h-11" onClick={() => setSelectedDate(state.data.range.startDate)}>Today</Button>
-        <Button type="button" variant="outline" className="min-h-11" disabled={dayIndex >= state.data.days.length - 1} onClick={() => setSelectedDate(state.data.days[dayIndex + 1]!.date)}>Next<ChevronRight aria-hidden /></Button>
+        <Button type="button" variant="control" disabled={dayIndex <= 0} onClick={() => setSelectedDate(state.data.days[dayIndex - 1]!.date)}><ChevronLeft aria-hidden />Previous</Button>
+        <Button type="button" variant={selectedDate === state.data.range.startDate ? 'controlActive' : 'control'} aria-pressed={selectedDate === state.data.range.startDate} onClick={() => setSelectedDate(state.data.range.startDate)}>Today</Button>
+        <Button type="button" variant="control" disabled={dayIndex >= state.data.days.length - 1} onClick={() => setSelectedDate(state.data.days[dayIndex + 1]!.date)}>Next<ChevronRight aria-hidden /></Button>
       </div>
 
       <div className="mt-5 flex gap-2 overflow-x-auto pb-2 lg:grid lg:grid-cols-7" aria-label="Seven-day selector">
         {state.data.days.map((day) => (
-          <button key={day.date} type="button" aria-pressed={selectedDate === day.date} onClick={() => setSelectedDate(day.date)} className={cn('min-w-48 rounded-lg border p-4 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring lg:min-w-0 lg:p-3', selectedDate === day.date ? 'border-primary bg-primary/10' : 'border-border hover:bg-secondary/50')}>
+          <Button key={day.date} type="button" variant={selectedDate === day.date ? 'controlActive' : 'control'} aria-pressed={selectedDate === day.date} onClick={() => setSelectedDate(day.date)} className="h-auto min-w-48 shrink-0 flex-col items-stretch justify-start whitespace-normal p-4 text-left text-sm lg:min-w-0 lg:p-3">
             <span className="block text-sm font-medium">{formatDaySectionLabel(day.date, state.data.generatedAt)}</span>
             <span className="mt-1 block text-lg font-semibold tabular-nums">{day.fishing.score}</span>
             <span className="block text-sm text-muted-foreground">{day.fishing.label} · Safety {day.safety.status}</span>
@@ -310,7 +403,7 @@ export function ForecastExperience({
             <span className="block text-sm tabular-nums">Wind {day.representativeWindKmh?.toFixed(0) ?? '—'} · {windLabel(day.representativeWindKmh)}</span>
             <span className="block text-sm" aria-label={weatherLabel(day.weatherCode)}>{weatherSymbol(day.weatherCode)} {weatherLabel(day.weatherCode)}</span>
             <span className="mt-1 block text-sm text-muted-foreground">{day.bestWindow ? `Best ${formatTimeLabel(day.bestWindow.start)}–${formatTimeLabel(day.bestWindow.end)}` : 'No recommended window'}</span>
-          </button>
+          </Button>
         ))}
       </div>
 
@@ -324,9 +417,9 @@ export function ForecastExperience({
       ) : null}
 
       <div className="mt-5 flex flex-col gap-3 rounded-lg border border-border/70 bg-muted/10 p-3 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex flex-wrap gap-1" role="group" aria-label="Forecast interval">{INTERVALS.map((item) => <button key={item.id} type="button" aria-pressed={interval === item.id} onClick={() => setInterval(item.id)} className={cn('min-h-11 rounded-md px-4 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring', interval === item.id ? 'bg-primary text-primary-foreground' : 'hover:bg-secondary')}>{item.label}</button>)}</div>
-        <div className="flex flex-wrap gap-1" role="group" aria-label="Forecast range"><button type="button" aria-pressed={scope === 'day'} onClick={() => setScope('day')} className={cn('min-h-11 rounded-md px-4 py-2 text-sm', scope === 'day' ? 'bg-secondary text-foreground' : 'text-muted-foreground')}>Selected day</button><button type="button" aria-pressed={scope === 'seven-days'} onClick={() => { setScope('seven-days'); if (interval === '30m' || interval === '1h') setInterval('3h'); }} className={cn('min-h-11 rounded-md px-4 py-2 text-sm', scope === 'seven-days' ? 'bg-secondary text-foreground' : 'text-muted-foreground')}>All 7 days</button></div>
-        <div className="flex flex-wrap gap-1" role="group" aria-label="Forecast view">{VIEWS.map((item) => <button key={item.id} type="button" aria-pressed={view === item.id} onClick={() => setView(item.id)} className={cn('min-h-11 rounded-md px-4 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring', view === item.id ? 'bg-primary text-primary-foreground' : 'hover:bg-secondary')}>{item.label}</button>)}</div>
+        <div className="flex gap-1 overflow-x-auto pb-1" role="group" aria-label="Forecast interval">{INTERVALS.map((item) => <Button key={item.id} type="button" size="sm" variant={interval === item.id ? 'controlActive' : 'control'} aria-pressed={interval === item.id} onClick={() => setInterval(item.id)} className="shrink-0">{item.label}</Button>)}</div>
+        <div className="flex gap-1 overflow-x-auto pb-1" role="group" aria-label="Forecast range"><Button type="button" size="sm" variant={scope === 'day' ? 'controlActive' : 'control'} aria-pressed={scope === 'day'} onClick={() => setScope('day')} className="shrink-0">Selected day</Button><Button type="button" size="sm" variant={scope === 'seven-days' ? 'controlActive' : 'control'} aria-pressed={scope === 'seven-days'} onClick={() => { setScope('seven-days'); if (interval === '30m' || interval === '1h') setInterval('3h'); }} className="shrink-0">All 7 days</Button></div>
+        <div className="flex gap-1 overflow-x-auto pb-1" role="group" aria-label="Forecast view">{VIEWS.map((item) => <Button key={item.id} type="button" size="sm" variant={view === item.id ? 'controlActive' : 'control'} aria-pressed={view === item.id} onClick={() => setView(item.id)} className="shrink-0">{item.label}</Button>)}</div>
       </div>
     </PremiumCard>
       <div className="grid min-w-0 gap-5 min-[1750px]:grid-cols-[minmax(0,1fr)_320px]">
