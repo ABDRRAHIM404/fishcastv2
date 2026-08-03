@@ -1,7 +1,9 @@
 'use client';
 
 import Image from 'next/image';
+import { useState } from 'react';
 import { motion } from 'framer-motion';
+import { ImageIcon } from 'lucide-react';
 import { PremiumCard } from '@/components/spot/premium-card';
 import { staggerContainer, fadeInUp } from '@/components/shared/motion';
 import type { SpotPhoto } from '@/lib/spots/photos';
@@ -18,6 +20,7 @@ export function SpotGallery({
   photos: SpotPhoto[];
   spotName: string;
 }) {
+  const [failedImages, setFailedImages] = useState<Set<string>>(new Set());
   if (photos.length === 0) return null;
 
   return (
@@ -35,13 +38,18 @@ export function SpotGallery({
             variants={fadeInUp}
             className="group relative aspect-[4/3] overflow-hidden rounded-lg border border-border/60"
           >
-            <Image
-              src={photo.url}
-              alt={`${spotName} — photo ${index + 1}`}
-              fill
-              sizes="(max-width: 640px) 50vw, 33vw"
-              className="object-cover transition-transform duration-500 group-hover:scale-105"
-            />
+            {failedImages.has(photo.id) ? (
+              <div className="flex size-full flex-col items-center justify-center gap-2 bg-secondary/50 text-sm text-muted-foreground"><ImageIcon className="size-6" aria-hidden /><span>Photo unavailable</span></div>
+            ) : (
+              <Image
+                src={photo.url}
+                alt={`${spotName} — photo ${index + 1}`}
+                fill
+                sizes="(max-width: 640px) 50vw, 33vw"
+                className="object-cover transition-transform duration-500 group-hover:scale-105"
+                onError={() => setFailedImages((current) => new Set(current).add(photo.id))}
+              />
+            )}
           </motion.div>
         ))}
       </motion.div>

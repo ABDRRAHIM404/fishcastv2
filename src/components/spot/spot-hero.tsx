@@ -1,8 +1,9 @@
 'use client';
 
 import Image from 'next/image';
+import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { MapPin } from 'lucide-react';
+import { ImageIcon, MapPin } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { transitions } from '@/components/shared/motion';
 import {
@@ -18,10 +19,14 @@ import {
  * gradient surface when no image is available.
  */
 export function SpotHero({ spot }: { spot: Spot }) {
+  const [imageFailed, setImageFailed] = useState(false);
   return (
     <section className="relative overflow-hidden rounded-2xl border border-border/70 shadow-premium">
-      <div className="relative aspect-[16/9] w-full bg-secondary/40 sm:aspect-[21/9]">
-        {spot.imageUrl ? (
+      <div className="relative h-60 w-full bg-gradient-to-br from-secondary/70 via-card to-background sm:h-80 lg:h-[clamp(22rem,30vw,30rem)]">
+        <div className="absolute inset-0 flex items-center justify-center text-muted-foreground/50" aria-hidden>
+          <ImageIcon className="size-12" />
+        </div>
+        {spot.imageUrl && !imageFailed ? (
           <motion.div
             initial={{ scale: 1.06, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
@@ -32,14 +37,12 @@ export function SpotHero({ spot }: { spot: Spot }) {
               src={spot.imageUrl}
               alt={spot.name}
               fill
-              priority
               sizes="100vw"
               className="object-cover"
+              onError={() => setImageFailed(true)}
             />
           </motion.div>
-        ) : (
-          <div className="absolute inset-0 bg-gradient-to-br from-secondary/60 to-background" />
-        )}
+        ) : null}
         <div className="absolute inset-0 bg-gradient-to-t from-background via-background/40 to-transparent" />
       </div>
 
@@ -47,7 +50,7 @@ export function SpotHero({ spot }: { spot: Spot }) {
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ ...transitions.smooth, delay: 0.1 }}
-        className="absolute bottom-0 left-0 right-0 p-6"
+        className="absolute bottom-0 left-0 right-0 p-4 sm:p-6"
       >
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="secondary">{SPOT_TYPE_LABELS[spot.spotType]}</Badge>
@@ -55,7 +58,7 @@ export function SpotHero({ spot }: { spot: Spot }) {
             {DIFFICULTY_LABELS[spot.difficultyLevel]}
           </Badge>
         </div>
-        <h1 className="mt-3 font-display text-display">{spot.name}</h1>
+        <h1 className="mt-3 font-display text-h1 sm:text-display">{spot.name}</h1>
         {spot.region ? (
           <p className="mt-1 flex items-center gap-1 text-muted-foreground">
             <MapPin className="size-4" />

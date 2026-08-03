@@ -112,12 +112,12 @@ function GraphPanel({
         <h4 className="font-medium">{title}</h4>
         <span className="text-xs text-muted-foreground">{unit}</span>
       </div>
-      <div className="mt-3 h-56 w-full" role="img" aria-label={`${title} forecast graph`}>
+      <div className="mt-3 h-72 w-full sm:h-80" role="img" aria-label={`${title} forecast graph`}>
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={data} margin={{ top: 8, right: 12, bottom: 4, left: -8 }}>
             <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="3 3" opacity={0.5} />
-            <XAxis dataKey="label" minTickGap={38} tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} stroke="hsl(var(--border))" />
-            <YAxis domain={domain} width={44} tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} stroke="hsl(var(--border))" />
+            <XAxis dataKey="label" minTickGap={42} tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }} stroke="hsl(var(--border))" />
+            <YAxis domain={domain} width={48} tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }} stroke="hsl(var(--border))" />
             <Tooltip
               contentStyle={{
                 background: 'hsl(var(--popover))',
@@ -192,14 +192,14 @@ export function ForecastGraphs({ periods, selectedTimestamp, onSelectTimestamp }
     <div>
       <div className="mb-4 flex gap-1 overflow-x-auto pb-1" role="tablist" aria-label="Forecast graph category">
         {CATEGORIES.map((item) => (
-          <button key={item.id} type="button" role="tab" aria-selected={category === item.id} onClick={() => setCategory(item.id)} className={cn('rounded-md px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring', category === item.id ? 'bg-primary text-primary-foreground' : 'bg-secondary text-muted-foreground hover:text-foreground')}>
+          <button key={item.id} type="button" role="tab" aria-selected={category === item.id} onClick={() => setCategory(item.id)} className={cn('min-h-11 rounded-md px-4 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring', category === item.id ? 'bg-primary text-primary-foreground' : 'bg-secondary text-muted-foreground hover:text-foreground')}>
             {item.label}
           </button>
         ))}
       </div>
       <label className="mb-4 block max-w-xs text-sm">
         <span className="mb-1 block text-muted-foreground">Selected graph time</span>
-        <select value={selectedTimestamp && periods.some((period) => period.start === selectedTimestamp) ? selectedTimestamp : periods[0]?.start ?? ''} onChange={(event) => onSelectTimestamp(event.target.value)} className="h-10 w-full rounded-md border border-input bg-background px-3">
+        <select value={selectedTimestamp && periods.some((period) => period.start === selectedTimestamp) ? selectedTimestamp : periods[0]?.start ?? ''} onChange={(event) => onSelectTimestamp(event.target.value)} className="min-h-11 w-full rounded-md border border-input bg-background px-3">
           {periods.map((period) => <option key={period.start} value={period.start}>{period.date.slice(5)} · {formatTimeLabel(period.start)}</option>)}
         </select>
       </label>
@@ -212,6 +212,13 @@ export function ForecastGraphs({ periods, selectedTimestamp, onSelectTimestamp }
       <p className="mt-3 text-xs text-muted-foreground">
         Gaps are shown when source values are unavailable. Green bands mark recommended periods, red bands mark intervals containing Dangerous conditions, and the dashed cursor is the selected time. Three- and six-hour views are display aggregates; modelled tide remains an estimate, not a nautical prediction.
       </p>
+      <details className="mt-3 rounded-lg border border-border/70 p-3 text-sm">
+        <summary className="flex min-h-11 cursor-pointer items-center font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Text alternative for selected graph time</summary>
+        {periods.find((period) => period.start === selectedTimestamp) ?? periods[0] ? (() => {
+          const selected = periods.find((period) => period.start === selectedTimestamp) ?? periods[0]!;
+          return <dl className="mt-2 grid gap-2 sm:grid-cols-2"><div><dt className="text-muted-foreground">Fishing / safety</dt><dd>{selected.fishing.score}/100 · {selected.fishing.label} / {selected.safety.status}</dd></div><div><dt className="text-muted-foreground">Wind / gust</dt><dd>{selected.wind.speedKmh?.toFixed(0) ?? '—'} / {selected.wind.gustKmh?.toFixed(0) ?? '—'} km/h</dd></div><div><dt className="text-muted-foreground">Wave / period</dt><dd>{selected.waves.heightM?.toFixed(1) ?? '—'} m / {selected.waves.periodS?.toFixed(1) ?? '—'} s</dd></div><div><dt className="text-muted-foreground">Modelled tide</dt><dd>{selected.tide.heightM?.toFixed(2) ?? '—'} m · {selected.tide.trend ?? 'Unavailable'}</dd></div></dl>;
+        })() : <p className="mt-2 text-muted-foreground">No graph data is available.</p>}
+      </details>
     </div>
   );
 }

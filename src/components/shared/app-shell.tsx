@@ -1,17 +1,83 @@
 'use client';
 
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { MotionConfig } from 'framer-motion';
-import { Fish } from 'lucide-react';
-import { mainNav, siteConfig } from '@/config/site';
+import {
+  CalendarDays,
+  ChevronLeft,
+  ChevronRight,
+  Fish,
+  Heart,
+  Home,
+  Map,
+  MapPin,
+  Menu,
+  X,
+  type LucideIcon,
+} from 'lucide-react';
+import { siteConfig } from '@/config/site';
+import {
+  DESKTOP_NAVIGATION,
+  MOBILE_MORE_NAVIGATION,
+  MOBILE_PRIMARY_NAVIGATION,
+  isNavigationActive,
+  parseShellPreference,
+  type NavigationDestination,
+  type NavigationIcon,
+} from '@/lib/navigation/config';
 import { cn } from '@/lib/utils';
 
+const SHELL_PREFERENCE_KEY = 'fishcast:application-shell:v1';
+
+const ICONS: Readonly<Record<NavigationIcon, LucideIcon>> = {
+  home: Home,
+  forecast: CalendarDays,
+  map: Map,
+  spots: MapPin,
+  species: Fish,
+  favorites: Heart,
+};
+
+function NavigationLink({
+  item,
+  pathname,
+  compact = false,
+  onNavigate,
+}: {
+  item: NavigationDestination;
+  pathname: string;
+  compact?: boolean;
+  onNavigate?: () => void;
+}) {
+  const Icon = ICONS[item.icon];
+  const active = isNavigationActive(pathname, item);
+  return (
+    <Link
+      href={item.href}
+      onClick={onNavigate}
+      aria-current={active ? 'page' : undefined}
+      aria-label={item.title}
+      title={item.title}
+      className={cn(
+        'flex min-h-11 items-center gap-3 rounded-lg px-3 text-sm font-medium text-muted-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+        'justify-center xl:justify-start',
+        compact && 'px-2 xl:justify-center',
+        active
+          ? 'bg-primary/15 text-primary'
+          : 'hover:bg-secondary/70 hover:text-foreground'
+      )}
+    >
+      <Icon className="size-5 shrink-0" aria-hidden />
+      {!compact ? <span className="hidden xl:inline">{item.title}</span> : null}
+    </Link>
+  );
+}
+
 /**
- * Responsive, mobile-first app shell.
- * - Top bar with brand on all viewports.
- * - Desktop: inline nav in the header.
- * - Mobile: fixed bottom tab bar.
+ * Responsive application frame: desktop sidebar, tablet icon rail, and a
+ * five-destination mobile bottom bar with a real-page More drawer.
  */
 export function AppShell({
   children,
@@ -19,56 +85,229 @@ export function AppShell({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const [collapsed, setCollapsed] = useState(false);
+  const [preferenceLoaded, setPreferenceLoaded] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const moreButtonRef = useRef<HTMLButtonElement>(null);
+
+  function closeMoreMenu(restoreFocus = true) {
+    setMoreOpen(false);
+    if (restoreFocus) {
+      window.requestAnimationFrame(() => moreButtonRef.current?.focus());
+    }
+  }
+
+  useEffect(() => {
+    setCollapsed(
+      parseShellPreference(localStorage.getItem(SHELL_PREFERENCE_KEY)).collapsed
+    );
+    setPreferenceLoaded(true);
+  }, []);
+
+  useEffect(() => {
+    if (!preferenceLoaded) return;
+    try {
+      localStorage.setItem(
+        SHELL_PREFERENCE_KEY,
+        JSON.stringify({ version: 1, collapsed })
+      );
+    } catch {
+      // Storage restrictions never block navigation.
+    }
+  }, [collapsed, preferenceLoaded]);
+
+  useEffect(() => {
+    if (!moreOpen) return;
+    closeButtonRef.current?.focus();
+    const handleDialogKeys = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        closeMoreMenu();
+        return;
+      }
+      if (event.key !== 'Tab') return;
+      const focusable = dialogRef.current?.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled])'
+      );
+      if (!focusable || focusable.length === 0) return;
+      const first = focusable[0]!;
+      const last = focusable[focusable.length - 1]!;
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    window.addEventListener('keydown', handleDialogKeys);
+    return () => window.removeEventListener('keydown', handleDialogKeys);
+  }, [moreOpen]);
+
+  const widePage = /^\/spots\/[^/]+/.test(pathname) || pathname === '/map';
+  const mobileMoreActive = MOBILE_MORE_NAVIGATION.some((item) =>
+    isNavigationActive(pathname, item)
+  );
 
   return (
     <MotionConfig reducedMotion="user">
-    <div className="flex min-h-dvh flex-col">
-      <header className="sticky top-0 z-40 border-b border-border/70 bg-background/70 backdrop-blur-md">
-        <div className="container flex h-16 items-center justify-between">
-          <Link href="/" className="flex items-center gap-2">
-            <span className="flex size-9 items-center justify-center rounded-lg bg-primary/15 text-primary">
-              <Fish className="size-5" />
+      <a
+        href="#main-content"
+        className="sr-only z-[100] rounded-md bg-primary px-4 py-3 text-primary-foreground focus:not-sr-only focus:fixed focus:left-3 focus:top-3"
+      >
+        Skip to main content
+      </a>
+      <div className="flex min-h-dvh min-w-0">
+        <aside
+          className={cn(
+            'sticky top-0 hidden h-dvh shrink-0 flex-col border-r border-border/70 bg-card/55 p-3 backdrop-blur-md md:flex',
+            collapsed ? 'w-20' : 'w-20 xl:w-60'
+          )}
+        >
+          <Link
+            href="/"
+            aria-label={siteConfig.name}
+            className={cn(
+              'flex h-12 items-center gap-3 rounded-lg px-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+              collapsed && 'justify-center'
+            )}
+          >
+            <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/15 text-primary">
+              <Fish className="size-5" aria-hidden />
             </span>
-            <span className="font-display text-lg font-semibold tracking-tight">
-              {siteConfig.name}
-            </span>
+            {!collapsed ? (
+              <span className="hidden font-display text-lg font-semibold tracking-tight xl:block">
+                {siteConfig.name}
+              </span>
+            ) : null}
           </Link>
-          <nav className="hidden items-center gap-1 sm:flex">
-            {mainNav.map((item) => (
-              <Link
+
+          <nav className="mt-6 flex flex-1 flex-col gap-1" aria-label="Primary navigation">
+            {DESKTOP_NAVIGATION.map((item) => (
+              <NavigationLink
                 key={item.href}
-                href={item.href}
-                className={cn(
-                  'rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground',
-                  pathname.startsWith(item.href) && 'text-foreground'
-                )}
-              >
-                {item.title}
-              </Link>
+                item={item}
+                pathname={pathname}
+                compact={collapsed}
+              />
             ))}
           </nav>
+
+          <button
+            type="button"
+            onClick={() => setCollapsed((value) => !value)}
+            className="hidden min-h-11 items-center justify-center gap-2 rounded-lg text-sm text-muted-foreground hover:bg-secondary/70 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring xl:flex"
+            aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          >
+            {collapsed ? <ChevronRight aria-hidden /> : <ChevronLeft aria-hidden />}
+            {!collapsed ? <span>Collapse</span> : null}
+          </button>
+        </aside>
+
+        <div className="flex min-w-0 flex-1 flex-col">
+          <header className="sticky top-0 z-40 border-b border-border/70 bg-background/85 backdrop-blur-md md:hidden">
+            <div className="flex h-16 items-center px-4">
+              <Link href="/" className="flex items-center gap-2 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                <span className="flex size-9 items-center justify-center rounded-lg bg-primary/15 text-primary">
+                  <Fish className="size-5" aria-hidden />
+                </span>
+                <span className="font-display text-lg font-semibold tracking-tight">
+                  {siteConfig.name}
+                </span>
+              </Link>
+            </div>
+          </header>
+
+          <main
+            id="main-content"
+            tabIndex={-1}
+            className={cn(
+              'mx-auto w-full min-w-0 flex-1 px-4 py-4 pb-[calc(5.5rem+env(safe-area-inset-bottom))] focus:outline-none sm:px-6 sm:py-6 md:pb-8 lg:px-8',
+              widePage ? 'max-w-[1800px]' : 'max-w-7xl'
+            )}
+          >
+            {children}
+          </main>
         </div>
-      </header>
 
-      <main className="container flex-1 py-6 pb-24 sm:pb-10">{children}</main>
+        {moreOpen ? (
+          <div className="fixed inset-0 z-50 md:hidden">
+            <button
+              type="button"
+              aria-label="Close navigation menu"
+              className="absolute inset-0 bg-background/75 backdrop-blur-sm"
+              onClick={() => closeMoreMenu()}
+            />
+            <div
+              id="mobile-more-menu"
+              ref={dialogRef}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="mobile-more-title"
+              className="absolute inset-x-3 bottom-[calc(5rem+env(safe-area-inset-bottom))] rounded-2xl border border-border bg-card p-4 shadow-premium"
+            >
+              <div className="flex items-center justify-between">
+                <h2 id="mobile-more-title" className="font-display text-h3">More</h2>
+                <button
+                  ref={closeButtonRef}
+                  type="button"
+                  onClick={() => closeMoreMenu()}
+                  className="flex size-11 items-center justify-center rounded-lg hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  aria-label="Close More menu"
+                >
+                  <X aria-hidden />
+                </button>
+              </div>
+              <nav className="mt-3 grid gap-2" aria-label="More destinations">
+                {MOBILE_MORE_NAVIGATION.map((item) => (
+                  <NavigationLink key={item.href} item={item} pathname={pathname} onNavigate={() => closeMoreMenu(false)} />
+                ))}
+              </nav>
+            </div>
+          </div>
+        ) : null}
 
-      <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-border/70 bg-background/80 backdrop-blur-md sm:hidden">
-        <div className="container flex h-16 items-center justify-around">
-          {mainNav.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
+        <nav
+          className="fixed inset-x-0 bottom-0 z-40 border-t border-border/70 bg-background/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-md md:hidden"
+          aria-label="Mobile navigation"
+        >
+          <div className="grid h-16 grid-cols-5 px-1">
+            {MOBILE_PRIMARY_NAVIGATION.map((item) => {
+              const Icon = ICONS[item.icon];
+              const active = isNavigationActive(pathname, item);
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  aria-current={active ? 'page' : undefined}
+                  className={cn(
+                    'flex min-h-11 flex-col items-center justify-center gap-0.5 rounded-md text-[0.7rem] font-medium text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                    active && 'text-primary'
+                  )}
+                >
+                  <Icon className="size-5" aria-hidden />
+                  {item.title === 'Overview' ? 'Home' : item.title}
+                </Link>
+              );
+            })}
+            <button
+              ref={moreButtonRef}
+              type="button"
+              aria-expanded={moreOpen}
+              aria-controls="mobile-more-menu"
+              onClick={() => setMoreOpen(true)}
               className={cn(
-                'flex flex-1 flex-col items-center gap-1 py-2 text-caption text-muted-foreground transition-colors',
-                pathname.startsWith(item.href) && 'text-primary'
+                'flex min-h-11 flex-col items-center justify-center gap-0.5 rounded-md text-[0.7rem] font-medium text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                mobileMoreActive && 'text-primary'
               )}
             >
-              {item.title}
-            </Link>
-          ))}
-        </div>
-      </nav>
-    </div>
+              <Menu className="size-5" aria-hidden />
+              More
+            </button>
+          </div>
+        </nav>
+      </div>
     </MotionConfig>
   );
 }

@@ -1,9 +1,10 @@
 'use client';
 
 import Image from 'next/image';
+import { useState } from 'react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
-import { MapPin } from 'lucide-react';
+import { ImageIcon, MapPin } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { fadeInUp } from '@/components/shared/motion';
 import {
@@ -13,6 +14,7 @@ import {
   type Spot,
 } from '@/types/spot';
 import { cn } from '@/lib/utils';
+import { publicSpotName } from '@/lib/forecast-ui/spots';
 
 /**
  * Premium spot card backed by the real `Spot` domain model. Links to the
@@ -21,27 +23,33 @@ import { cn } from '@/lib/utils';
 export function SpotListCard({
   spot,
   className,
+  href = `/spots/${spot.slug}`,
 }: {
   spot: Spot;
   className?: string;
+  href?: string;
 }) {
+  const [imageFailed, setImageFailed] = useState(false);
+  const displayName = publicSpotName(spot.slug, spot.name);
   return (
     <motion.div variants={fadeInUp} whileHover={{ y: -4 }}>
       <Link
-        href={`/spots/${spot.slug}`}
+        href={href}
         className={cn(
           'surface-glass group block overflow-hidden rounded-lg shadow-premium transition-shadow hover:shadow-glow',
           className
         )}
       >
         <div className="relative aspect-[16/10] w-full overflow-hidden bg-secondary/40">
-          {spot.imageUrl ? (
+          <div className="absolute inset-0 flex items-center justify-center text-muted-foreground/50" aria-hidden><ImageIcon className="size-8" /></div>
+          {spot.imageUrl && !imageFailed ? (
             <Image
               src={spot.imageUrl}
-              alt={spot.name}
+              alt={displayName}
               fill
               sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
               className="object-cover transition-transform duration-500 group-hover:scale-105"
+              onError={() => setImageFailed(true)}
             />
           ) : null}
           <div className="absolute inset-0 bg-gradient-to-t from-background/90 via-background/20 to-transparent" />
@@ -53,7 +61,7 @@ export function SpotListCard({
           </div>
         </div>
         <div className="p-5">
-          <h3 className="font-display text-h3 tracking-tight">{spot.name}</h3>
+          <h3 className="font-display text-h3 tracking-tight">{displayName}</h3>
           {spot.region ? (
             <p className="mt-1 flex items-center gap-1 text-sm text-muted-foreground">
               <MapPin className="size-3.5" />

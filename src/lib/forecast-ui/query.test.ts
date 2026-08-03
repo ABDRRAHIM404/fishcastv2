@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  FORECAST_UI_DEFAULTS,
   dateInForecastRange,
   isForecastInterval,
   isForecastScope,
@@ -9,6 +10,11 @@ import {
 } from '@/lib/forecast-ui/query';
 
 describe('forecast query validation', () => {
+  it('defaults responsive forecast state to the selected day', () => {
+    expect(FORECAST_UI_DEFAULTS.scope).toBe('day');
+    expect(FORECAST_UI_DEFAULTS.interval).toBe('3h');
+  });
+
   it('accepts only supported URL state values', () => {
     expect(isForecastInterval('30m')).toBe(true);
     expect(isForecastInterval('2h')).toBe(false);
@@ -39,4 +45,3 @@ describe('forecast query validation', () => {
     );
   });
 });
-

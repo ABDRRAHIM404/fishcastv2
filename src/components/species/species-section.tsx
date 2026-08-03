@@ -12,6 +12,7 @@ export interface SpeciesFlags {
   inSeason: boolean;
   favored: boolean;
   favoredReason: string | null;
+  preferredSummary?: string | null;
 }
 
 /**
@@ -41,7 +42,7 @@ export function SpeciesSection({
           />
           <p className="mt-3 font-medium">No species data recorded yet</p>
           <p className="mt-1 text-sm text-muted-foreground">
-            Species tracking arrives in Phase 8.
+            No species are currently linked to this spot.
           </p>
         </div>
       ) : (
@@ -60,6 +61,7 @@ export function SpeciesSection({
                 inSeason={f?.inSeason ?? false}
                 favored={f?.favored ?? false}
                 favoredReason={f?.favoredReason ?? null}
+                preferredSummary={f?.preferredSummary ?? null}
               />
             );
           })}

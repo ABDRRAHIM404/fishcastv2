@@ -1,24 +1,14 @@
-import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
-import { Navigation } from 'lucide-react';
-import { PageTransition } from '@/components/shared/motion';
-import { PremiumCard } from '@/components/spot/premium-card';
-import { SpotHero } from '@/components/spot/spot-hero';
-import { SpotGallery } from '@/components/spot/spot-gallery';
-import { FavoriteButton } from '@/components/spot/favorite-button';
-import { SpeciesSection, type SpeciesFlags } from '@/components/species/species-section';
-import { AiRecommendationCard } from '@/components/ai/ai-recommendation-card';
-import { ForecastExperience } from '@/components/forecast/forecast-experience';
-import { buttonVariants } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
+import type { SpeciesFlags } from '@/components/species/species-section';
+import { SpotPageExperience } from '@/components/spot/spot-page-experience';
 import { getActiveSpots, getSpotBySlug } from '@/lib/spots/queries';
 import { getSpotPhotos } from '@/lib/spots/photos';
 import { getSpotSpecies, getSpeciesCatalog } from '@/lib/species/queries';
 import { getMarineConditionsForSpot } from '@/lib/marine/service';
 import { evaluateSuitability } from '@/lib/species/suitability';
 import { isInSeason } from '@/types/species';
-import { SPOT_TYPE_LABELS, DIFFICULTY_LABELS } from '@/types/spot';
+import { summarizePreferredConditions } from '@/types/species';
 import { productMonth, todayProductDate } from '@/lib/time/casablanca';
 import {
   FORECAST_UI_DEFAULTS,
@@ -28,6 +18,7 @@ import {
   isForecastView,
 } from '@/lib/forecast-ui/query';
 import { publicSpotName } from '@/lib/forecast-ui/spots';
+import { spotPageSectionOrDefault } from '@/lib/spot-page/state';
 
 // The dynamic segment is the spot slug (route folder name kept as [id]).
 export async function generateMetadata({
@@ -38,21 +29,22 @@ export async function generateMetadata({
   const { id } = await params;
   const spot = await getSpotBySlug(id);
   if (!spot) return { title: 'Spot' };
+  const displayName = publicSpotName(spot.slug, spot.name);
 
   const regionLine = [spot.region, spot.province]
     .filter(Boolean)
     .join(' · ');
   const description =
     spot.description ??
-    `Live marine conditions, fishing score, best windows and target species for ${spot.name}${
+    `Live marine conditions, fishing score, best windows and target species for ${displayName}${
       regionLine ? ` (${regionLine})` : ''
     }.`;
 
   return {
-    title: spot.name,
+    title: displayName,
     description,
     openGraph: {
-      title: spot.name,
+      title: displayName,
       description,
       type: 'article',
       images: spot.imageUrl ? [{ url: spot.imageUrl }] : undefined,
@@ -77,6 +69,9 @@ export default async function SpotDetailsPage({
     typeof query.interval === 'string' ? query.interval : null;
   const queryView = typeof query.view === 'string' ? query.view : null;
   const queryScope = typeof query.scope === 'string' ? query.scope : null;
+  const initialSection = spotPageSectionOrDefault(
+    typeof query.section === 'string' ? query.section : null
+  );
   const initialDate =
     queryDate && dateInForecastRange(queryDate, today) ? queryDate : today;
   const initialInterval = isForecastInterval(queryInterval)
@@ -120,126 +115,31 @@ export default async function SpotDetailsPage({
       favored = result.favored;
       favoredReason = result.reason;
     }
-    speciesFlags[s.id] = { inSeason, favored, favoredReason };
+    speciesFlags[s.id] = {
+      inSeason,
+      favored,
+      favoredReason,
+      preferredSummary: summarizePreferredConditions(
+        preferredById.get(s.id) ?? null
+      ),
+    };
   }
 
-  const factors = spot.difficultyFactors ?? {};
-  const factorEntries = Object.entries(factors).filter(
-    ([, value]) => typeof value === 'string' && value.length > 0
-  ) as [string, string][];
-
   return (
-    <PageTransition className="space-y-8">
-      <SpotHero spot={spot} />
-
-      <div className="grid gap-6 lg:grid-cols-3">
-        {/* Main column */}
-        <div className="space-y-6 lg:col-span-2">
-          {spot.description ? (
-            <PremiumCard className="p-6">
-              <h2 className="font-display text-h3">About this spot</h2>
-              <p className="mt-3 text-body-lg text-muted-foreground">
-                {spot.description}
-              </p>
-            </PremiumCard>
-          ) : null}
-
-          {factorEntries.length > 0 ? (
-            <PremiumCard className="p-6">
-              <h2 className="font-display text-h3">Difficulty breakdown</h2>
-              <dl className="mt-4 grid gap-3 sm:grid-cols-2">
-                {factorEntries.map(([key, value]) => (
-                  <div
-                    key={key}
-                    className="rounded-lg border border-border/60 px-4 py-3"
-                  >
-                    <dt className="text-caption uppercase text-muted-foreground">
-                      {key}
-                    </dt>
-                    <dd className="mt-0.5 capitalize">{value}</dd>
-                  </div>
-                ))}
-              </dl>
-            </PremiumCard>
-          ) : null}
-
-          <SpotGallery photos={photos} spotName={spot.name} />
-
-          <ForecastExperience
-            spotSlug={spot.slug}
-            initialDate={initialDate}
-            initialInterval={initialInterval}
-            initialView={initialView}
-            initialScope={initialScope}
-            spots={allSpots.map((item) => ({
-              slug: item.slug,
-              displayName: publicSpotName(item.slug, item.name),
-            }))}
-          />
-
-          <AiRecommendationCard spotId={spot.id} />
-
-          <SpeciesSection species={species} flags={speciesFlags} />
-        </div>
-
-        {/* Sidebar */}
-        <aside className="space-y-6">
-          <PremiumCard className="p-6">
-            <h2 className="font-display text-h3">Spot information</h2>
-            <dl className="mt-4 space-y-3 text-sm">
-              <div className="flex justify-between gap-4">
-                <dt className="text-muted-foreground">Type</dt>
-                <dd>{SPOT_TYPE_LABELS[spot.spotType]}</dd>
-              </div>
-              <div className="flex justify-between gap-4">
-                <dt className="text-muted-foreground">Difficulty</dt>
-                <dd>{DIFFICULTY_LABELS[spot.difficultyLevel]}</dd>
-              </div>
-              {spot.region ? (
-                <div className="flex justify-between gap-4">
-                  <dt className="text-muted-foreground">Region</dt>
-                  <dd>{spot.region}</dd>
-                </div>
-              ) : null}
-              {spot.province ? (
-                <div className="flex justify-between gap-4">
-                  <dt className="text-muted-foreground">Province</dt>
-                  <dd>{spot.province}</dd>
-                </div>
-              ) : null}
-              <div className="flex justify-between gap-4">
-                <dt className="text-muted-foreground">Coordinates</dt>
-                <dd className="tabular-nums">
-                  {spot.latitude.toFixed(4)}, {spot.longitude.toFixed(4)}
-                </dd>
-              </div>
-            </dl>
-
-            <div className="mt-5 space-y-2">
-              <FavoriteButton spotId={spot.id} />
-              <a
-                href={`https://www.google.com/maps/search/?api=1&query=${spot.latitude},${spot.longitude}`}
-                target="_blank"
-                rel="noreferrer"
-                className={cn(
-                  buttonVariants({ variant: 'outline' }),
-                  'w-full'
-                )}
-              >
-                <Navigation className="size-4" />
-                Open in Maps
-              </a>
-            </div>
-          </PremiumCard>
-
-          <Link
-            href="/map"
-            className={cn(buttonVariants({ variant: 'ghost' }), 'w-full')}
-          >
-            Back to map
-          </Link>
-        </aside>
-      </div>
-    </PageTransition>
+    <SpotPageExperience
+      spot={spot}
+      photos={photos}
+      species={species}
+      speciesFlags={speciesFlags}
+      initialSection={initialSection}
+      initialDate={initialDate}
+      initialInterval={initialInterval}
+      initialView={initialView}
+      initialScope={initialScope}
+      spots={allSpots.map((item) => ({
+        slug: item.slug,
+        displayName: publicSpotName(item.slug, item.name),
+      }))}
+    />
   );
 }

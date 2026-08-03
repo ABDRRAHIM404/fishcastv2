@@ -1,6 +1,7 @@
 'use client';
 
 import Image from 'next/image';
+import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Fish } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
@@ -22,13 +23,16 @@ export function SpeciesCard({
   inSeason = false,
   favored = false,
   favoredReason = null,
+  preferredSummary = null,
 }: {
   species: SpotSpecies;
   inSeason?: boolean;
   favored?: boolean;
   favoredReason?: string | null;
+  preferredSummary?: string | null;
 }) {
   const season = formatSeasonMonths(species.seasonMonths);
+  const [imageFailed, setImageFailed] = useState(false);
 
   return (
     <motion.article
@@ -36,13 +40,14 @@ export function SpeciesCard({
       className="surface-glass group flex gap-4 overflow-hidden rounded-lg border border-border/60 p-3"
     >
       <div className="relative size-20 shrink-0 overflow-hidden rounded-md bg-secondary/50">
-        {species.imageUrl ? (
+        {species.imageUrl && !imageFailed ? (
           <Image
             src={species.imageUrl}
             alt={species.commonName}
             fill
             sizes="80px"
             className="object-cover transition-transform duration-500 group-hover:scale-105"
+            onError={() => setImageFailed(true)}
           />
         ) : (
           <div className="flex size-full items-center justify-center text-muted-foreground">
@@ -72,6 +77,11 @@ export function SpeciesCard({
         {season ? (
           <p className="mt-1 text-caption uppercase text-muted-foreground">
             Season: <span className="normal-case">{season}</span>
+          </p>
+        ) : null}
+        {preferredSummary ? (
+          <p className="mt-1 text-sm text-muted-foreground">
+            Prefers: {preferredSummary}
           </p>
         ) : null}
         {inSeason || favored ? (
