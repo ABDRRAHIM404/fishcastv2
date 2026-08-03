@@ -1,3 +1,5 @@
+'use client';
+
 import {
   AlertTriangle,
   BarChart3,
@@ -12,19 +14,27 @@ import {
 import { Button } from '@/components/ui/button';
 import type {
   ForecastDailySummary,
-  ForecastHumanInterpretation,
   ForecastPeriod,
   ForecastView,
 } from '@/lib/forecast-ui/types';
-import { formatValue, wavePeriodLabel, windLabel } from '@/lib/forecast-ui/labels';
-import { formatDaySectionLabel, formatTimeLabel } from '@/lib/timeline/format';
 import { cn } from '@/lib/utils';
 import { isUrgentSafetyStatus } from '@/lib/forecast-ui/presentation';
+import { useI18n } from '@/i18n/provider';
+import { formatDayLabel, formatFullDate, formatMeasurement, formatPercentage, formatScore, formatTime } from '@/i18n/formatting';
+import {
+  confidenceStatus,
+  fishingStatus,
+  primarySafetyWarning,
+  safetyStatus,
+  seaStateStatus,
+  tideStatus,
+  wavePeriodBand,
+  windBand,
+} from '@/i18n/presentation';
 
 interface Props {
   day: ForecastDailySummary;
   current: ForecastPeriod | null;
-  interpretation: ForecastHumanInterpretation;
   freshnessMinutes: number | null;
   onOpenForecast: (view?: ForecastView, comparison?: boolean) => void;
   onOpenSpecies: () => void;
@@ -34,22 +44,55 @@ interface Props {
 export function ForecastOverview({
   day,
   current,
-  interpretation,
   freshnessMinutes,
   onOpenForecast,
   onOpenSpecies,
   onOpenGuide,
 }: Props) {
+  const { locale, t } = useI18n();
   const safetyDominant = isUrgentSafetyStatus(day.safety.status);
+  const qualityReason = current
+    ? t('insight.qualityReason', {
+        label: fishingStatus(t, current.fishing.label),
+        score: formatScore(locale, current.fishing.score),
+        wind: current.wind.speedKmh === null
+          ? t('insight.windUnavailable')
+          : t('insight.windValue', {
+              value: formatMeasurement(locale, current.wind.speedKmh, 'km/h'),
+            }),
+        waves: current.waves.heightM === null
+          ? t('insight.wavesUnavailable')
+          : t('insight.wavesValue', {
+              value: formatMeasurement(locale, current.waves.heightM, 'm', 1),
+            }),
+      })
+    : t('insight.qualityUnavailable');
+
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <p className="text-sm text-muted-foreground">{formatDaySectionLabel(day.date)} · {day.date} · Africa/Casablanca</p>
-          <h2 className="font-display text-h2">Should you fish here?</h2>
+          <p className="text-sm text-muted-foreground">
+            {t('overview.dateLine', {
+              day: formatDayLabel(
+                locale,
+                day.date,
+                new Date().toISOString(),
+                t('common.today'),
+                t('common.tomorrow')
+              ),
+              date: formatFullDate(locale, day.date),
+            })}
+          </p>
+          <h2 className="font-display text-h2">{t('overview.question')}</h2>
         </div>
         <span className="rounded-full border border-border px-3 py-1.5 text-sm text-muted-foreground">
-          Updated {freshnessMinutes === null ? 'time unavailable' : `${freshnessMinutes} min ago`}
+          {t('overview.updated', {
+            age:
+              freshnessMinutes === null
+                ? t('common.unavailable')
+                : t('conditions.age', { minutes: freshnessMinutes }),
+          })}
         </span>
       </div>
 
@@ -70,47 +113,53 @@ export function ForecastOverview({
               <ShieldAlert className="size-7 text-condition-poor" aria-hidden />
             )}
             <div>
-              <p className="text-sm text-muted-foreground">Safety</p>
+              <p className="text-sm text-muted-foreground">{t('overview.safety')}</p>
               <h3 id="overview-safety-title" className="font-display text-h2">
-                {day.safety.status}
+                {safetyStatus(t, day.safety.status)}
               </h3>
             </div>
           </div>
           <p className="mt-3 text-base">
-            {day.safety.primaryWarning ??
-              (day.safety.status === 'Safe'
-                ? 'No active modelled warning. Verify access and shore conditions locally.'
-                : 'Safety cannot be assessed from the available inputs.')}
+            {current
+              ? primarySafetyWarning(t, locale, current, day.safety.status)
+              : day.safety.status === 'Safe'
+                ? t('overview.noWarning')
+                : t('overview.safetyIncomplete')}
           </p>
         </section>
 
         <section className="rounded-xl border border-primary/35 bg-primary/5 p-5" aria-labelledby="overview-fishing-title">
-          <p className="text-sm text-muted-foreground">Fishing quality</p>
+          <p className="text-sm text-muted-foreground">{t('overview.fishingQuality')}</p>
           <h3 id="overview-fishing-title" className="mt-1 font-display text-h2">
-            {day.fishing.score}/100 · {day.fishing.label}
+            {formatScore(locale, day.fishing.score)} · {fishingStatus(t, day.fishing.label)}
           </h3>
           <p className="mt-2 text-sm text-muted-foreground">
-            {day.confidence.completenessPercentage}% · {day.confidence.label} confidence
+            {t('overview.confidence', {
+              percent: formatPercentage(locale, day.confidence.completenessPercentage),
+              label: confidenceStatus(t, day.confidence.label),
+            })}
           </p>
           {safetyDominant ? (
             <p className="mt-3 flex items-start gap-2 text-sm text-condition-poor">
               <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden />
-              Fishing quality does not override the {day.safety.status.toLowerCase()} safety assessment.
+              {t('overview.qualityCannotOverride', {
+                status: safetyStatus(t, day.safety.status),
+              })}
             </p>
           ) : null}
         </section>
 
         <section className="rounded-xl border border-border bg-muted/10 p-5" aria-labelledby="overview-window-title">
-          <p className="text-sm text-muted-foreground">Best recommended window</p>
+          <p className="text-sm text-muted-foreground">{t('overview.bestWindow')}</p>
           <h3 id="overview-window-title" className="mt-1 font-display text-h3">
             {day.bestWindow
-              ? `${formatTimeLabel(day.bestWindow.start)}–${formatTimeLabel(day.bestWindow.end)}`
-              : 'No recommended window'}
+              ? `${formatTime(locale, day.bestWindow.start)}–${formatTime(locale, day.bestWindow.end)}`
+              : t('forecast.noWindow')}
           </h3>
           <p className="mt-2 text-sm text-muted-foreground">
             {day.bestSpecies
-              ? `Matched target: ${day.bestSpecies}`
-              : 'No supported target-species match is available.'}
+              ? t('overview.matchedTarget', { species: day.bestSpecies })
+              : t('overview.noSpeciesMatch')}
           </p>
         </section>
       </div>
@@ -118,31 +167,60 @@ export function ForecastOverview({
       <section aria-labelledby="current-conditions-title">
         <div className="flex items-end justify-between gap-3">
           <div>
-            <p className="text-sm text-muted-foreground">At {current ? formatTimeLabel(current.start) : '—'}</p>
-            <h3 id="current-conditions-title" className="font-display text-h3">Current conditions</h3>
+            <p className="text-sm text-muted-foreground">
+              {t('overview.atTime', {
+                time: current ? formatTime(locale, current.start) : '—',
+              })}
+            </p>
+            <h3 id="current-conditions-title" className="font-display text-h3">
+              {t('overview.currentConditions')}
+            </h3>
           </div>
-          <Button type="button" variant="control" size="sm" onClick={() => onOpenForecast('timeline')}>Open timeline</Button>
+          <Button type="button" variant="control" size="sm" onClick={() => onOpenForecast('timeline')}>
+            {t('overview.openTimeline')}
+          </Button>
         </div>
         <dl className="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <div className="rounded-xl border border-border p-4"><dt className="flex items-center gap-2 text-sm text-muted-foreground"><Wind className="size-4 text-primary" aria-hidden />Wind</dt><dd className="mt-2 text-base font-semibold tabular-nums">{formatValue(current?.wind.speedKmh ?? null, ' km/h')}</dd><dd className="text-sm text-muted-foreground">{windLabel(current?.wind.speedKmh ?? null)}</dd></div>
-          <div className="rounded-xl border border-border p-4"><dt className="flex items-center gap-2 text-sm text-muted-foreground"><Waves className="size-4 text-primary" aria-hidden />Waves</dt><dd className="mt-2 text-base font-semibold tabular-nums">{formatValue(current?.waves.heightM ?? null, ' m', 1)}</dd><dd className="text-sm text-muted-foreground">{current?.waves.derived.seaState ?? 'Unavailable'}</dd></div>
-          <div className="rounded-xl border border-border p-4"><dt className="text-sm text-muted-foreground">Wave period</dt><dd className="mt-2 text-base font-semibold tabular-nums">{formatValue(current?.waves.periodS ?? null, ' s', 1)}</dd><dd className="text-sm text-muted-foreground">{wavePeriodLabel(current?.waves.periodS ?? null)}</dd></div>
-          <div className="rounded-xl border border-border p-4"><dt className="text-sm text-muted-foreground">Modelled tide</dt><dd className="mt-2 text-base font-semibold tabular-nums">{formatValue(current?.tide.heightM ?? null, ' m', 2)}</dd><dd className="text-sm capitalize text-muted-foreground">{current?.tide.trend ?? 'Unavailable'}</dd></div>
+          <div className="rounded-xl border border-border p-4">
+            <dt className="flex items-center gap-2 text-sm text-muted-foreground"><Wind className="size-4 text-primary" aria-hidden />{t('conditions.wind')}</dt>
+            <dd className="mt-2 text-base font-semibold tabular-nums">{formatMeasurement(locale, current?.wind.speedKmh ?? null, 'km/h')}</dd>
+            <dd className="text-sm text-muted-foreground">{windBand(t, current?.wind.speedKmh ?? null)}</dd>
+          </div>
+          <div className="rounded-xl border border-border p-4">
+            <dt className="flex items-center gap-2 text-sm text-muted-foreground"><Waves className="size-4 text-primary" aria-hidden />{t('comparison.waves')}</dt>
+            <dd className="mt-2 text-base font-semibold tabular-nums">{formatMeasurement(locale, current?.waves.heightM ?? null, 'm', 1)}</dd>
+            <dd className="text-sm text-muted-foreground">{seaStateStatus(t, current?.waves.heightM ?? null, current?.waves.derived.seaState)}</dd>
+          </div>
+          <div className="rounded-xl border border-border p-4">
+            <dt className="text-sm text-muted-foreground">{t('graph.wavePeriodTitle')}</dt>
+            <dd className="mt-2 text-base font-semibold tabular-nums">{formatMeasurement(locale, current?.waves.periodS ?? null, 's', 1)}</dd>
+            <dd className="text-sm text-muted-foreground">{wavePeriodBand(t, current?.waves.periodS ?? null)}</dd>
+          </div>
+          <div className="rounded-xl border border-border p-4">
+            <dt className="text-sm text-muted-foreground">{t('conditions.tide')}</dt>
+            <dd className="mt-2 text-base font-semibold tabular-nums">{formatMeasurement(locale, current?.tide.heightM ?? null, 'm', 2)}</dd>
+            <dd className="text-sm text-muted-foreground">{tideStatus(t, current?.tide.trend ?? null)}</dd>
+          </div>
         </dl>
       </section>
 
       <section className="rounded-xl border border-border/70 bg-card/50 p-5" aria-labelledby="overview-meaning-title">
-        <h3 id="overview-meaning-title" className="font-display text-h3">FishCast recommendation</h3>
-        <p className="mt-2 text-base text-muted-foreground">{interpretation.qualityReason}</p>
-        <p className="mt-2 text-sm text-muted-foreground">{interpretation.confidenceLimitation}</p>
+        <h3 id="overview-meaning-title" className="font-display text-h3">{t('overview.recommendation')}</h3>
+        <p className="mt-2 text-base text-muted-foreground">{qualityReason}</p>
+        <p className="mt-2 text-sm text-muted-foreground">
+          {t('insight.confidenceLimit', {
+            label: confidenceStatus(t, day.confidence.label),
+            percent: formatPercentage(locale, day.confidence.completenessPercentage),
+          })}
+        </p>
       </section>
 
-      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5" aria-label="Spot actions">
-        <Button type="button" className="min-h-12" onClick={() => onOpenForecast('table')}><CalendarDays aria-hidden />Detailed forecast</Button>
-        <Button type="button" className="min-h-12" variant="control" onClick={() => onOpenForecast('graph')}><BarChart3 aria-hidden />View graphs</Button>
-        <Button type="button" className="min-h-12" variant="control" onClick={onOpenSpecies}><Fish aria-hidden />Species</Button>
-        <Button type="button" className="min-h-12" variant="control" onClick={onOpenGuide}><BookOpen aria-hidden />Spot guide</Button>
-        <Button type="button" className="min-h-12" variant="control" onClick={() => onOpenForecast('table', true)}><Waves aria-hidden />Compare spots</Button>
+      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5" aria-label={t('overview.actions')}>
+        <Button type="button" className="min-h-12" onClick={() => onOpenForecast('table')}><CalendarDays aria-hidden />{t('overview.detailedForecast')}</Button>
+        <Button type="button" className="min-h-12" variant="control" onClick={() => onOpenForecast('graph')}><BarChart3 aria-hidden />{t('overview.viewGraphs')}</Button>
+        <Button type="button" className="min-h-12" variant="control" onClick={onOpenSpecies}><Fish aria-hidden />{t('species.title')}</Button>
+        <Button type="button" className="min-h-12" variant="control" onClick={onOpenGuide}><BookOpen aria-hidden />{t('spot.guide')}</Button>
+        <Button type="button" className="min-h-12" variant="control" onClick={() => onOpenForecast('table', true)}><Waves aria-hidden />{t('forecast.compareSpots')}</Button>
       </div>
     </div>
   );

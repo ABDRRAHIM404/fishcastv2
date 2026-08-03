@@ -6,6 +6,7 @@ import { PremiumCard } from '@/components/spot/premium-card';
 import { SpeciesCard } from '@/components/species/species-card';
 import { staggerContainer } from '@/components/shared/motion';
 import type { SpotSpecies } from '@/types/species';
+import { useI18n } from '@/i18n/provider';
 
 /** Per-species presentation flags computed server-side. */
 export interface SpeciesFlags {
@@ -27,11 +28,12 @@ export function SpeciesSection({
   species: SpotSpecies[];
   flags?: Record<string, SpeciesFlags>;
 }) {
+  const { t } = useI18n();
   return (
     <PremiumCard className="p-6">
       <div className="flex items-center gap-2">
         <Fish className="size-5 text-primary" aria-hidden />
-        <h2 className="font-display text-h3">Species</h2>
+        <h2 className="font-display text-h3">{t('species.title')}</h2>
       </div>
 
       {species.length === 0 ? (
@@ -40,9 +42,9 @@ export function SpeciesSection({
             className="mx-auto size-8 text-muted-foreground"
             aria-hidden
           />
-          <p className="mt-3 font-medium">No species data recorded yet</p>
+          <p className="mt-3 font-medium">{t('species.noData')}</p>
           <p className="mt-1 text-sm text-muted-foreground">
-            No species are currently linked to this spot.
+            {t('species.noneLinked')}
           </p>
         </div>
       ) : (

@@ -8,7 +8,6 @@ import { getSpotSpecies, getSpeciesCatalog } from '@/lib/species/queries';
 import { getMarineConditionsForSpot } from '@/lib/marine/service';
 import { evaluateSuitability } from '@/lib/species/suitability';
 import { isInSeason } from '@/types/species';
-import { summarizePreferredConditions } from '@/types/species';
 import { productMonth, todayProductDate } from '@/lib/time/casablanca';
 import {
   FORECAST_UI_DEFAULTS,
@@ -19,6 +18,9 @@ import {
 } from '@/lib/forecast-ui/query';
 import { publicSpotName } from '@/lib/forecast-ui/spots';
 import { spotPageSectionOrDefault } from '@/lib/spot-page/state';
+import { createTranslator } from '@/i18n/dictionaries';
+import { getRequestLocale } from '@/i18n/server';
+import { preferredConditionsSummary } from '@/i18n/presentation';
 
 // The dynamic segment is the spot slug (route folder name kept as [id]).
 export async function generateMetadata({
@@ -28,7 +30,9 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { id } = await params;
   const spot = await getSpotBySlug(id);
-  if (!spot) return { title: 'Spot' };
+  const locale = await getRequestLocale();
+  const t = createTranslator(locale);
+  if (!spot) return { title: t('metadata.spotFallbackTitle') };
   const displayName = publicSpotName(spot.slug, spot.name);
 
   const regionLine = [spot.region, spot.province]
@@ -36,9 +40,7 @@ export async function generateMetadata({
     .join(' · ');
   const description =
     spot.description ??
-    `Live marine conditions, fishing score, best windows and target species for ${displayName}${
-      regionLine ? ` (${regionLine})` : ''
-    }.`;
+    t('metadata.spotDescription', { spot: displayName, region: regionLine });
 
   return {
     title: displayName,
@@ -63,6 +65,8 @@ export default async function SpotDetailsPage({
   const query = await searchParams;
   const spot = await getSpotBySlug(id);
   if (!spot) notFound();
+  const locale = await getRequestLocale();
+  const t = createTranslator(locale);
   const today = todayProductDate();
   const queryDate = typeof query.date === 'string' ? query.date : null;
   const queryInterval =
@@ -119,7 +123,9 @@ export default async function SpotDetailsPage({
       inSeason,
       favored,
       favoredReason,
-      preferredSummary: summarizePreferredConditions(
+      preferredSummary: preferredConditionsSummary(
+        t,
+        locale,
         preferredById.get(s.id) ?? null
       ),
     };

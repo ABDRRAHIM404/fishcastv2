@@ -7,11 +7,12 @@ import { Fish } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { fadeInUp } from '@/components/shared/motion';
 import {
-  PREVALENCE_LABELS,
   PREVALENCE_BADGE_VARIANT,
-  formatSeasonMonths,
   type SpotSpecies,
 } from '@/types/species';
+import { useI18n } from '@/i18n/provider';
+import { formatSeasonMonths } from '@/i18n/formatting';
+import { prevalenceLabel } from '@/i18n/presentation';
 
 /**
  * Species card for the spot details page. Shows the species image, names,
@@ -22,7 +23,6 @@ export function SpeciesCard({
   species,
   inSeason = false,
   favored = false,
-  favoredReason = null,
   preferredSummary = null,
 }: {
   species: SpotSpecies;
@@ -31,7 +31,8 @@ export function SpeciesCard({
   favoredReason?: string | null;
   preferredSummary?: string | null;
 }) {
-  const season = formatSeasonMonths(species.seasonMonths);
+  const { locale, t } = useI18n();
+  const season = formatSeasonMonths(locale, species.seasonMonths, t('species.allYear'));
   const [imageFailed, setImageFailed] = useState(false);
 
   return (
@@ -61,7 +62,7 @@ export function SpeciesCard({
           <h3 className="truncate font-medium">{species.commonName}</h3>
           {species.prevalence ? (
             <Badge variant={PREVALENCE_BADGE_VARIANT[species.prevalence]}>
-              {PREVALENCE_LABELS[species.prevalence]}
+              {prevalenceLabel(t, species.prevalence)}
             </Badge>
           ) : null}
         </div>
@@ -76,12 +77,12 @@ export function SpeciesCard({
         ) : null}
         {season ? (
           <p className="mt-1 text-caption uppercase text-muted-foreground">
-            Season: <span className="normal-case">{season}</span>
+            {t('species.season')}: <span className="normal-case">{season}</span>
           </p>
         ) : null}
         {preferredSummary ? (
           <p className="mt-1 text-sm text-muted-foreground">
-            Prefers: {preferredSummary}
+            {t('species.prefers')}: {preferredSummary}
           </p>
         ) : null}
         {inSeason || favored ? (
@@ -89,12 +90,12 @@ export function SpeciesCard({
             {favored ? (
               <Badge
                 variant="excellent"
-                title={favoredReason ?? undefined}
+                title={t('species.favouredReason')}
               >
-                Favored now
+                {t('species.favouredNow')}
               </Badge>
             ) : null}
-            {inSeason ? <Badge variant="good">In season</Badge> : null}
+            {inSeason ? <Badge variant="good">{t('species.inSeason')}</Badge> : null}
           </div>
         ) : null}
       </div>

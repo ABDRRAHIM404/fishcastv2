@@ -4,6 +4,23 @@ import dynamic from 'next/dynamic';
 import { Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { Spot } from '@/types/spot';
+import { useI18n } from '@/i18n/provider';
+
+function MapLoading() {
+  const { t } = useI18n();
+  return (
+    <div
+      className="relative flex h-[60vh] min-h-[420px] w-full items-center justify-center overflow-hidden rounded-2xl border border-border/70 bg-background/60 shadow-premium"
+      role="status"
+      aria-label={t('map.loadingLabel')}
+    >
+      <div className="flex flex-col items-center gap-3">
+        <Loader2 className="size-6 animate-spin text-primary" aria-hidden />
+        <p className="text-sm text-muted-foreground">{t('map.loading')}</p>
+      </div>
+    </div>
+  );
+}
 
 /**
  * Lazy wrapper for the interactive Leaflet map. Leaflet depends on the DOM/window,
@@ -17,18 +34,7 @@ const FishingMap = dynamic(
   () => import('@/components/map/fishing-map').then((m) => m.FishingMap),
   {
     ssr: false,
-    loading: () => (
-      <div
-        className="relative flex h-[60vh] min-h-[420px] w-full items-center justify-center overflow-hidden rounded-2xl border border-border/70 bg-background/60 shadow-premium"
-        role="status"
-        aria-label="Loading map"
-      >
-        <div className="flex flex-col items-center gap-3">
-          <Loader2 className="size-6 animate-spin text-primary" aria-hidden />
-          <p className="text-sm text-muted-foreground">Loading map…</p>
-        </div>
-      </div>
-    ),
+    loading: () => <MapLoading />,
   }
 );
 

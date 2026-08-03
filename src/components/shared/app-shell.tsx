@@ -18,6 +18,8 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { siteConfig } from '@/config/site';
+import { LanguageSelector } from '@/components/shared/language-selector';
+import { useI18n } from '@/i18n/provider';
 import {
   DESKTOP_NAVIGATION,
   MOBILE_MORE_NAVIGATION,
@@ -51,15 +53,17 @@ function NavigationLink({
   compact?: boolean;
   onNavigate?: () => void;
 }) {
+  const { t } = useI18n();
   const Icon = ICONS[item.icon];
   const active = isNavigationActive(pathname, item);
+  const label = t(item.label === 'favorites' ? 'nav.favourites' : `nav.${item.label}`);
   return (
     <Link
       href={item.href}
       onClick={onNavigate}
       aria-current={active ? 'page' : undefined}
-      aria-label={item.title}
-      title={item.title}
+      aria-label={label}
+      title={label}
       className={cn(
         'flex min-h-11 items-center gap-3 rounded-lg border px-3 text-sm font-medium text-muted-foreground shadow-sm transition-[background-color,border-color,color,transform] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:translate-y-px',
         'justify-center xl:justify-start',
@@ -70,7 +74,7 @@ function NavigationLink({
       )}
     >
       <Icon className="size-5 shrink-0" aria-hidden />
-      {!compact ? <span className="hidden xl:inline">{item.title}</span> : null}
+      {!compact ? <span className="hidden xl:inline">{label}</span> : null}
     </Link>
   );
 }
@@ -85,6 +89,7 @@ export function AppShell({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const { direction, t } = useI18n();
   const [collapsed, setCollapsed] = useState(false);
   const [preferenceLoaded, setPreferenceLoaded] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
@@ -154,14 +159,14 @@ export function AppShell({
     <MotionConfig reducedMotion="user">
       <a
         href="#main-content"
-        className="sr-only z-[100] rounded-md bg-primary px-4 py-3 text-primary-foreground focus:not-sr-only focus:fixed focus:left-3 focus:top-3"
+        className="sr-only z-[100] rounded-md bg-primary px-4 py-3 text-primary-foreground focus:not-sr-only focus:fixed focus:top-3 focus:[inset-inline-start:0.75rem]"
       >
-        Skip to main content
+        {t('nav.skip')}
       </a>
       <div className="flex min-h-dvh min-w-0">
         <aside
           className={cn(
-            'sticky top-0 hidden h-dvh shrink-0 flex-col border-r border-border/70 bg-card/55 p-3 backdrop-blur-md md:flex',
+            'sticky top-0 hidden h-dvh shrink-0 flex-col border-border/70 bg-card/55 p-3 backdrop-blur-md [border-inline-end-width:1px] md:flex',
             collapsed ? 'w-20' : 'w-20 xl:w-60'
           )}
         >
@@ -183,7 +188,7 @@ export function AppShell({
             ) : null}
           </Link>
 
-          <nav className="mt-6 flex flex-1 flex-col gap-1" aria-label="Primary navigation">
+          <nav className="mt-6 flex flex-1 flex-col gap-1" aria-label={t('nav.primary')}>
             {DESKTOP_NAVIGATION.map((item) => (
               <NavigationLink
                 key={item.href}
@@ -194,14 +199,18 @@ export function AppShell({
             ))}
           </nav>
 
+          <LanguageSelector compact={collapsed} className="mb-2" />
+
           <button
             type="button"
             onClick={() => setCollapsed((value) => !value)}
             className="hidden min-h-11 items-center justify-center gap-2 rounded-lg border border-border/80 bg-card/35 px-3 text-sm text-muted-foreground shadow-sm hover:border-primary/45 hover:bg-secondary/70 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:translate-y-px xl:flex"
-            aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            aria-label={collapsed ? t('nav.expandSidebar') : t('nav.collapseSidebar')}
           >
-            {collapsed ? <ChevronRight aria-hidden /> : <ChevronLeft aria-hidden />}
-            {!collapsed ? <span>Collapse</span> : null}
+            {collapsed ? (
+              direction === 'rtl' ? <ChevronLeft aria-hidden /> : <ChevronRight aria-hidden />
+            ) : direction === 'rtl' ? <ChevronRight aria-hidden /> : <ChevronLeft aria-hidden />}
+            {!collapsed ? <span>{t('nav.collapse')}</span> : null}
           </button>
         </aside>
 
@@ -235,7 +244,7 @@ export function AppShell({
           <div className="fixed inset-0 z-50 md:hidden">
             <button
               type="button"
-              aria-label="Close navigation menu"
+              aria-label={t('nav.close')}
               className="absolute inset-0 bg-background/75 backdrop-blur-sm"
               onClick={() => closeMoreMenu()}
             />
@@ -248,29 +257,30 @@ export function AppShell({
               className="absolute inset-x-3 bottom-[calc(5rem+env(safe-area-inset-bottom))] rounded-2xl border border-border bg-card p-4 shadow-premium"
             >
               <div className="flex items-center justify-between">
-                <h2 id="mobile-more-title" className="font-display text-h3">More</h2>
+                <h2 id="mobile-more-title" className="font-display text-h3">{t('nav.more')}</h2>
                 <button
                   ref={closeButtonRef}
                   type="button"
                   onClick={() => closeMoreMenu()}
                   className="flex size-11 items-center justify-center rounded-lg hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  aria-label="Close More menu"
+                  aria-label={t('nav.closeMore')}
                 >
                   <X aria-hidden />
                 </button>
               </div>
-              <nav className="mt-3 grid gap-2" aria-label="More destinations">
+              <nav className="mt-3 grid gap-2" aria-label={t('nav.moreDestinations')}>
                 {MOBILE_MORE_NAVIGATION.map((item) => (
                   <NavigationLink key={item.href} item={item} pathname={pathname} onNavigate={() => closeMoreMenu(false)} />
                 ))}
               </nav>
+              <LanguageSelector className="mt-3" />
             </div>
           </div>
         ) : null}
 
         <nav
           className="fixed inset-x-0 bottom-0 z-40 border-t border-border/70 bg-background/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-md md:hidden"
-          aria-label="Mobile navigation"
+          aria-label={t('nav.mobile')}
         >
           <div className="grid h-16 grid-cols-5 px-1">
             {MOBILE_PRIMARY_NAVIGATION.map((item) => {
@@ -287,7 +297,9 @@ export function AppShell({
                   )}
                 >
                   <Icon className="size-5" aria-hidden />
-                  {item.title === 'Overview' ? 'Home' : item.title}
+                  {item.label === 'home'
+                    ? t('nav.home')
+                    : t(item.label === 'favorites' ? 'nav.favourites' : `nav.${item.label}`)}
                 </Link>
               );
             })}
@@ -303,7 +315,7 @@ export function AppShell({
               )}
             >
               <Menu className="size-5" aria-hidden />
-              More
+              {t('nav.more')}
             </button>
           </div>
         </nav>

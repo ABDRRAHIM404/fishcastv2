@@ -6,8 +6,11 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { Loader2, MapPinned } from 'lucide-react';
 import { MAP_CONFIG } from '@/config/map';
-import { SPOT_TYPE_LABELS, type Spot } from '@/types/spot';
+import type { Spot } from '@/types/spot';
 import { cn } from '@/lib/utils';
+import { useI18n } from '@/i18n/provider';
+import { spotTypeLabel } from '@/i18n/presentation';
+import { publicSpotName } from '@/lib/forecast-ui/spots';
 
 interface FishingMapProps {
   spots: Spot[];
@@ -45,6 +48,7 @@ function configureLeafletIconDefaults() {
 }
 
 export function FishingMap({ spots, className }: FishingMapProps) {
+  const { t } = useI18n();
   const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
@@ -58,16 +62,16 @@ export function FishingMap({ spots, className }: FishingMapProps) {
         <Marker key={spot.id} position={[spot.latitude, spot.longitude]}>
           <Popup>
             <div className="space-y-1 text-sm">
-              <p className="font-semibold">{spot.name}</p>
-              <p className="text-muted-foreground">{SPOT_TYPE_LABELS[spot.spotType]}</p>
+              <p className="font-semibold">{publicSpotName(spot.slug, spot.name)}</p>
+              <p className="text-muted-foreground">{spotTypeLabel(t, spot.spotType)}</p>
               <a className="text-primary underline" href={`/spots/${spot.slug}`}>
-                View spot
+                {t('map.viewSpot')}
               </a>
             </div>
           </Popup>
         </Marker>
       )),
-    [spots]
+    [spots, t]
   );
 
   return (
@@ -96,7 +100,7 @@ export function FishingMap({ spots, className }: FishingMapProps) {
       {!isReady ? (
         <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-background/80 backdrop-blur-sm">
           <Loader2 className="size-6 animate-spin text-primary" />
-          <p className="text-sm text-muted-foreground">Loading map…</p>
+          <p className="text-sm text-muted-foreground">{t('map.loading')}</p>
         </div>
       ) : null}
 
@@ -104,7 +108,7 @@ export function FishingMap({ spots, className }: FishingMapProps) {
         <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-background/90 p-6 text-center">
           <MapPinned className="size-6 text-muted-foreground" />
           <p className="max-w-sm text-sm text-muted-foreground">
-            No spots are available to display on the map.
+            {t('map.empty')}
           </p>
         </div>
       ) : null}

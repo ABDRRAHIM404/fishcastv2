@@ -5,16 +5,18 @@ import { motion } from 'framer-motion';
 import { Fish } from 'lucide-react';
 import { fadeInUp } from '@/components/shared/motion';
 import {
-  summarizePreferredConditions,
   type Species,
 } from '@/types/species';
+import { useI18n } from '@/i18n/provider';
+import { preferredConditionsSummary } from '@/i18n/presentation';
 
 /**
  * Premium catalog card for the /species page. Shows the full species metadata:
  * names, image, description, and a preferred-conditions summary.
  */
 export function SpeciesCatalogCard({ species }: { species: Species }) {
-  const conditions = summarizePreferredConditions(species.preferredConditions);
+  const { locale, t } = useI18n();
+  const conditions = preferredConditionsSummary(t, locale, species.preferredConditions);
 
   return (
     <motion.article
@@ -54,12 +56,12 @@ export function SpeciesCatalogCard({ species }: { species: Species }) {
         </div>
         {species.description ? (
           <p className="line-clamp-3 text-sm text-muted-foreground">
-            {species.description}
+            <span dir="auto">{species.description}</span>
           </p>
         ) : null}
         {conditions ? (
           <p className="text-caption uppercase text-muted-foreground">
-            Prefers: <span className="normal-case">{conditions}</span>
+            {t('species.prefers')}: <span className="normal-case">{conditions}</span>
           </p>
         ) : null}
       </div>

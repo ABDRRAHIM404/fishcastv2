@@ -7,14 +7,11 @@ import { motion } from 'framer-motion';
 import { ImageIcon, MapPin } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { fadeInUp } from '@/components/shared/motion';
-import {
-  SPOT_TYPE_LABELS,
-  DIFFICULTY_LABELS,
-  DIFFICULTY_BADGE_VARIANT,
-  type Spot,
-} from '@/types/spot';
+import { DIFFICULTY_BADGE_VARIANT, type Spot } from '@/types/spot';
 import { cn } from '@/lib/utils';
 import { publicSpotName } from '@/lib/forecast-ui/spots';
+import { useI18n } from '@/i18n/provider';
+import { difficultyLabel, spotTypeLabel } from '@/i18n/presentation';
 
 /**
  * Premium spot card backed by the real `Spot` domain model. Links to the
@@ -30,6 +27,7 @@ export function SpotListCard({
   href?: string;
 }) {
   const [imageFailed, setImageFailed] = useState(false);
+  const { t } = useI18n();
   const displayName = publicSpotName(spot.slug, spot.name);
   return (
     <motion.div variants={fadeInUp} whileHover={{ y: -4 }}>
@@ -53,10 +51,10 @@ export function SpotListCard({
             />
           ) : null}
           <div className="absolute inset-0 bg-gradient-to-t from-background/90 via-background/20 to-transparent" />
-          <div className="absolute left-3 top-3 flex gap-2">
-            <Badge variant="secondary">{SPOT_TYPE_LABELS[spot.spotType]}</Badge>
+          <div className="absolute top-3 flex gap-2 [inset-inline-start:0.75rem]">
+            <Badge variant="secondary">{spotTypeLabel(t, spot.spotType)}</Badge>
             <Badge variant={DIFFICULTY_BADGE_VARIANT[spot.difficultyLevel]}>
-              {DIFFICULTY_LABELS[spot.difficultyLevel]}
+              {difficultyLabel(t, spot.difficultyLevel)}
             </Badge>
           </div>
         </div>

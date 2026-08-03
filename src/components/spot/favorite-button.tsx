@@ -4,6 +4,7 @@ import { Heart } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useLocalFavorites } from '@/hooks/use-local-favorites';
 import { cn } from '@/lib/utils';
+import { useI18n } from '@/i18n/provider';
 
 export function FavoriteButton({
   spotId,
@@ -12,6 +13,7 @@ export function FavoriteButton({
   spotId: string;
   className?: string;
 }) {
+  const { t } = useI18n();
   const {
     status,
     error,
@@ -22,12 +24,12 @@ export function FavoriteButton({
   const favorited = isFavorite(spotId);
   const pending = status === 'pending';
   const feedback = pending
-    ? 'Loading saved status'
+    ? t('favourites.loadingStatus')
     : error
-      ? error
+      ? t('favourites.storageError')
       : favorited
-        ? 'Spot saved on this device'
-        : 'Spot not saved';
+        ? t('favourites.savedStatus')
+        : t('favourites.notSavedStatus');
 
   return (
     <div className={cn('w-full', className)}>
@@ -40,10 +42,10 @@ export function FavoriteButton({
         aria-pressed={favorited}
         aria-label={
           pending
-            ? 'Loading saved status'
+            ? t('favourites.loadingStatus')
             : favorited
-              ? 'Remove from favorites'
-              : 'Save to favorites'
+              ? t('favourites.remove')
+              : t('favourites.save')
         }
         className="w-full"
       >
@@ -51,14 +53,14 @@ export function FavoriteButton({
           className={cn('size-4', favorited && 'fill-current')}
           aria-hidden
         />
-        {pending ? 'Loading…' : favorited ? 'Saved' : 'Save spot'}
+        {pending ? `${t('common.loading')}…` : favorited ? t('favourites.saved') : t('favourites.saveSpot')}
       </Button>
       <span className="sr-only" role="status" aria-live="polite">
         {feedback}
       </span>
       {error ? (
         <p className="mt-2 text-xs text-destructive" role="alert">
-          {error}
+          {t('favourites.storageError')}
         </p>
       ) : null}
     </div>

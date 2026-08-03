@@ -22,7 +22,6 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useForecast } from '@/hooks/use-forecast';
 import {
-  forecastRefreshLabel,
   primeBrowserForecast,
   providerAvailability,
 } from '@/lib/forecast-ui/browser-cache';
@@ -31,8 +30,7 @@ import type {
   ForecastScope,
   ForecastView,
 } from '@/lib/forecast-ui/types';
-import { formatDaySectionLabel, formatTimeLabel } from '@/lib/timeline/format';
-import { wavePeriodLabel, weatherLabel, weatherSymbol, windLabel } from '@/lib/forecast-ui/labels';
+import { weatherSymbol } from '@/lib/forecast-ui/labels';
 import { periodsForScope } from '@/lib/forecast-ui/query';
 import { isUrgentSafetyStatus } from '@/lib/forecast-ui/presentation';
 import { cn } from '@/lib/utils';
@@ -40,6 +38,31 @@ import type {
   ForecastNavigationIntent,
   SpotPageSection,
 } from '@/lib/spot-page/state';
+import { useI18n } from '@/i18n/provider';
+import { formatDayLabel, formatMeasurement, formatScore, formatShortDate, formatTime } from '@/i18n/formatting';
+import {
+  fishingStatus,
+  forecastCacheLabel,
+  dataQualityStatus,
+  primarySafetyWarning,
+  providerAvailabilityMessage,
+  safetyStatus,
+  wavePeriodBand,
+  weatherStatus,
+  windBand,
+} from '@/i18n/presentation';
+import type { TranslationKey } from '@/i18n/types';
+
+function ForecastGraphsLoading() {
+  const { t } = useI18n();
+  return (
+    <div className="space-y-4" aria-busy="true">
+      <Skeleton className="h-11 w-full max-w-xl" />
+      <Skeleton className="h-80 w-full" />
+      <p className="sr-only" role="status">{t('forecast.loadingGraphs')}</p>
+    </div>
+  );
+}
 
 const ForecastGraphs = dynamic(
   () =>
@@ -47,29 +70,21 @@ const ForecastGraphs = dynamic(
       (module) => module.ForecastGraphs
     ),
   {
-    loading: () => (
-      <div className="space-y-4" aria-busy="true">
-        <Skeleton className="h-11 w-full max-w-xl" />
-        <Skeleton className="h-80 w-full" />
-        <p className="sr-only" role="status">
-          Loading forecast graphs
-        </p>
-      </div>
-    ),
+    loading: () => <ForecastGraphsLoading />,
   }
 );
 
 const PREFERENCE_KEY = 'fishcast:forecast-preferences:v1';
-const INTERVALS: Array<{ id: ForecastInterval; label: string }> = [
-  { id: '30m', label: '30 min' },
-  { id: '1h', label: '1 hour' },
-  { id: '3h', label: '3 hours' },
-  { id: '6h', label: '6 hours' },
+const INTERVALS: Array<{ id: ForecastInterval; labelKey: TranslationKey }> = [
+  { id: '30m', labelKey: 'forecast.interval.30m' },
+  { id: '1h', labelKey: 'forecast.interval.1h' },
+  { id: '3h', labelKey: 'forecast.interval.3h' },
+  { id: '6h', labelKey: 'forecast.interval.6h' },
 ];
-const VIEWS: Array<{ id: ForecastView; label: string }> = [
-  { id: 'table', label: 'Table' },
-  { id: 'graph', label: 'Graphs' },
-  { id: 'timeline', label: 'Timeline' },
+const VIEWS: Array<{ id: ForecastView; labelKey: TranslationKey }> = [
+  { id: 'table', labelKey: 'forecast.view.table' },
+  { id: 'graph', labelKey: 'forecast.view.graph' },
+  { id: 'timeline', labelKey: 'forecast.view.timeline' },
 ];
 
 export interface ForecastSpotOption {
@@ -119,6 +134,7 @@ export function ForecastExperience({
   onNavigate,
   onSpotSwitchStart,
 }: Props) {
+  const { direction, locale, t } = useI18n();
   const router = useRouter();
   const [isNavigatingSpot, startSpotNavigation] = useTransition();
   const [activeSpotSlug, setActiveSpotSlug] = useState(spotSlug);
@@ -244,7 +260,7 @@ export function ForecastExperience({
     (period) => period.start === selectedTimelineTimestamp
   );
   const comparisonTime = selectedDay?.bestWindow
-    ? formatTimeLabel(selectedDay.bestWindow.peakTime)
+    ? formatTime(locale, selectedDay.bestWindow.peakTime)
     : '12:00';
 
   function switchSpot(nextSlug: string) {
@@ -272,31 +288,32 @@ export function ForecastExperience({
         <Skeleton className="h-10 w-full" />
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-7">{Array.from({ length: 7 }).map((_, index) => <Skeleton key={index} className="h-24" />)}</div>
         <Skeleton className="h-72 w-full" />
-        <p className="flex items-center gap-2 text-sm text-muted-foreground" role="status"><Loader2 className="size-4 animate-spin text-primary" aria-hidden />{isSlow ? 'Getting the latest marine conditions…' : 'Loading marine conditions…'}</p>
+        <p className="flex items-center gap-2 text-sm text-muted-foreground" role="status"><Loader2 className="size-4 animate-spin text-primary" aria-hidden />{isSlow ? t('forecast.gettingLatest') : t('forecast.loadingMarine')}</p>
       </PremiumCard>
     );
   }
   if (state.status === 'error' || !selectedDay) {
     return (
       <PremiumCard className="p-6">
-        <h2 className="font-display text-h3">Forecast unavailable</h2>
-        <p className="mt-2 text-sm text-muted-foreground">{state.status === 'error' ? state.message : 'No forecast day is available.'}</p>
-        <Button type="button" variant="outline" className="mt-4" onClick={refetch}><RotateCw aria-hidden />Retry</Button>
+        <h2 className="font-display text-h3">{t('forecast.unavailable')}</h2>
+        <p className="mt-2 text-sm text-muted-foreground">
+          {state.status === 'error'
+            ? typeof navigator !== 'undefined' && !navigator.onLine
+              ? t('forecast.offline')
+              : t('forecast.refreshFailed')
+            : t('forecast.noDay')}
+        </p>
+        <Button type="button" variant="outline" className="mt-4" onClick={refetch}><RotateCw aria-hidden />{t('common.retry')}</Button>
       </PremiumCard>
     );
   }
 
   const dayIndex = state.data.days.findIndex((day) => day.date === selectedDay.date);
-  const interpretation =
-    state.data.interpretations[selectedDay.date] ?? state.data.interpretation;
   const availability = providerAvailability(state.data);
-  const refreshLabel = forecastRefreshLabel({
-    refreshing: state.refreshing,
-    sourceAgeMinutes: state.data.freshnessMinutes,
-    refreshFailed: state.refreshError !== null,
-  });
+  const refreshLabel = forecastCacheLabel(t, state.refreshing, state.data.freshnessMinutes, state.refreshError !== null);
+  const availabilityMessage = providerAvailabilityMessage(t, state.data.sourceTimestamps);
   const statusPanel =
-    refreshLabel || availability.message || isNavigatingSpot ? (
+    refreshLabel || availabilityMessage || isNavigatingSpot ? (
       <div
         className={cn(
           'flex flex-wrap items-center justify-between gap-3 rounded-xl border px-4 py-3 text-sm',
@@ -310,19 +327,19 @@ export function ForecastExperience({
         <div>
           <p className="font-medium">
             {isNavigatingSpot
-              ? `Updating ${spots.find((item) => item.slug === activeSpotSlug)?.displayName ?? 'spot'} forecast…`
-              : refreshLabel ?? 'Partial forecast data'}
+              ? t('forecast.updatingSpot', { spot: spots.find((item) => item.slug === activeSpotSlug)?.displayName ?? t('spot.fallbackName') })
+              : refreshLabel ?? t('forecast.partial')}
           </p>
-          {availability.message ? (
-            <p className="mt-0.5 text-muted-foreground">{availability.message}</p>
+          {availabilityMessage ? (
+            <p className="mt-0.5 text-muted-foreground">{availabilityMessage}</p>
           ) : null}
           {state.refreshError ? (
-            <p className="mt-0.5 text-muted-foreground">{state.refreshError}</p>
+            <p className="mt-0.5 text-muted-foreground">{t('forecast.refreshFailed')}</p>
           ) : null}
         </div>
         {availability.status !== 'complete' || state.refreshError ? (
           <Button type="button" size="sm" variant="control" onClick={refetch}>
-            <RotateCw aria-hidden />Retry unavailable data
+            <RotateCw aria-hidden />{t('forecast.retryUnavailable')}
           </Button>
         ) : null}
       </div>
@@ -335,7 +352,6 @@ export function ForecastExperience({
         <ForecastOverview
           day={selectedDay}
           current={selectedReadout ?? null}
-          interpretation={interpretation}
           freshnessMinutes={state.data.freshnessMinutes}
           onOpenForecast={(nextView, comparison) =>
             onNavigate('forecast', { view: nextView, comparison })
@@ -365,61 +381,61 @@ export function ForecastExperience({
     {isUrgentSafetyStatus(selectedDay.safety.status) ? (
       <div className="flex items-start gap-3 rounded-xl border border-destructive/60 bg-destructive/15 p-4" role="alert">
         <AlertTriangle className="mt-0.5 size-5 shrink-0 text-condition-poor" aria-hidden />
-        <div><p className="font-semibold">Safety {selectedDay.safety.status}</p><p className="mt-1 text-sm">{selectedDay.safety.primaryWarning ?? 'Safety cannot be assessed from the available marine inputs.'}</p><p className="mt-1 text-xs text-muted-foreground">This warning overrides fishing scores and best-window recommendations.</p></div>
+        <div><p className="font-semibold">{t('forecast.safetyHeading', { status: safetyStatus(t, selectedDay.safety.status) })}</p><p className="mt-1 text-sm">{primarySafetyWarning(t, locale, selectedReadout ?? null, selectedDay.safety.status)}</p><p className="mt-1 text-xs text-muted-foreground">{t('forecast.safetyOverride')}</p></div>
       </div>
     ) : null}
     <PremiumCard className="overflow-hidden p-4 sm:p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <div className="flex items-center gap-2"><CalendarDays className="size-5 text-primary" aria-hidden /><h2 className="font-display text-h2">Seven-day fishing forecast</h2></div>
-          <p className="mt-1 text-sm text-muted-foreground">{state.data.range.startDate}–{state.data.range.endDate} · Africa/Casablanca · updated {state.data.freshnessMinutes === null ? 'time unavailable' : `${state.data.freshnessMinutes} min ago`}</p>
+          <div className="flex items-center gap-2"><CalendarDays className="size-5 text-primary" aria-hidden /><h2 className="font-display text-h2">{t('forecast.sevenDayTitle')}</h2></div>
+          <p className="mt-1 text-sm text-muted-foreground" dir="auto">{formatShortDate(locale, state.data.range.startDate)}–{formatShortDate(locale, state.data.range.endDate)} · Africa/Casablanca · {state.data.freshnessMinutes === null ? t('forecast.updatedUnavailable') : t('forecast.updated', { minutes: state.data.freshnessMinutes })}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <span className="rounded-full border border-border px-3 py-1 text-xs text-muted-foreground">Modelled data · not for navigation</span>
+          <span className="rounded-full border border-border px-3 py-1 text-xs text-muted-foreground">{t('forecast.modelDisclaimer')}</span>
           <Button asChild variant="control" size="sm">
-            <a href="#spot-comparison">Compare spots</a>
+            <a href="#spot-comparison">{t('forecast.compareSpots')}</a>
           </Button>
         </div>
       </div>
 
       <div className="mt-5 grid gap-3 sm:grid-cols-2">
-        <label className="text-sm"><span className="mb-1 block text-muted-foreground">Fishing spot</span><select value={activeSpotSlug} aria-busy={isNavigatingSpot} onChange={(event) => switchSpot(event.target.value)} className="min-h-11 w-full cursor-pointer rounded-md border border-border/90 bg-card/55 px-3 text-foreground shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring aria-busy:cursor-progress aria-busy:border-primary/60">{spots.map((spot) => <option key={spot.slug} value={spot.slug}>{spot.displayName}</option>)}</select></label>
-        <label className="text-sm"><span className="mb-1 block text-muted-foreground">Forecast date</span><input type="date" value={selectedDate} min={state.data.range.startDate} max={state.data.range.endDate} onChange={(event) => setSelectedDate(event.target.value)} className="min-h-11 w-full rounded-md border border-input bg-background px-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" /></label>
+        <label className="text-sm"><span className="mb-1 block text-muted-foreground">{t('forecast.spot')}</span><select value={activeSpotSlug} aria-busy={isNavigatingSpot} onChange={(event) => switchSpot(event.target.value)} className="min-h-11 w-full cursor-pointer rounded-md border border-border/90 bg-card/55 px-3 text-foreground shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring aria-busy:cursor-progress aria-busy:border-primary/60">{spots.map((spot) => <option key={spot.slug} value={spot.slug}>{spot.displayName}</option>)}</select></label>
+        <label className="text-sm"><span className="mb-1 block text-muted-foreground">{t('forecast.date')}</span><input type="date" value={selectedDate} min={state.data.range.startDate} max={state.data.range.endDate} onChange={(event) => setSelectedDate(event.target.value)} className="min-h-11 w-full rounded-md border border-input bg-background px-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" dir="ltr" /></label>
       </div>
 
       <div className="mt-3 flex flex-wrap gap-2">
-        <Button type="button" variant="control" disabled={dayIndex <= 0} onClick={() => setSelectedDate(state.data.days[dayIndex - 1]!.date)}><ChevronLeft aria-hidden />Previous</Button>
-        <Button type="button" variant={selectedDate === state.data.range.startDate ? 'controlActive' : 'control'} aria-pressed={selectedDate === state.data.range.startDate} onClick={() => setSelectedDate(state.data.range.startDate)}>Today</Button>
-        <Button type="button" variant="control" disabled={dayIndex >= state.data.days.length - 1} onClick={() => setSelectedDate(state.data.days[dayIndex + 1]!.date)}>Next<ChevronRight aria-hidden /></Button>
+        <Button type="button" variant="control" disabled={dayIndex <= 0} onClick={() => setSelectedDate(state.data.days[dayIndex - 1]!.date)}>{direction === 'rtl' ? <ChevronRight aria-hidden /> : <ChevronLeft aria-hidden />}{t('common.previous')}</Button>
+        <Button type="button" variant={selectedDate === state.data.range.startDate ? 'controlActive' : 'control'} aria-pressed={selectedDate === state.data.range.startDate} onClick={() => setSelectedDate(state.data.range.startDate)}>{t('common.today')}</Button>
+        <Button type="button" variant="control" disabled={dayIndex >= state.data.days.length - 1} onClick={() => setSelectedDate(state.data.days[dayIndex + 1]!.date)}>{t('common.next')}{direction === 'rtl' ? <ChevronLeft aria-hidden /> : <ChevronRight aria-hidden />}</Button>
       </div>
 
-      <div className="mt-5 flex gap-2 overflow-x-auto pb-2 lg:grid lg:grid-cols-7" aria-label="Seven-day selector">
+      <div className="mt-5 flex gap-2 overflow-x-auto pb-2 lg:grid lg:grid-cols-7" aria-label={t('forecast.daySelector')} dir="ltr">
         {state.data.days.map((day) => (
-          <Button key={day.date} type="button" variant={selectedDate === day.date ? 'controlActive' : 'control'} aria-pressed={selectedDate === day.date} onClick={() => setSelectedDate(day.date)} className="h-auto min-w-48 shrink-0 flex-col items-stretch justify-start whitespace-normal p-4 text-left text-sm lg:min-w-0 lg:p-3">
-            <span className="block text-sm font-medium">{formatDaySectionLabel(day.date, state.data.generatedAt)}</span>
+          <Button key={day.date} type="button" variant={selectedDate === day.date ? 'controlActive' : 'control'} aria-pressed={selectedDate === day.date} onClick={() => setSelectedDate(day.date)} className="h-auto min-w-48 shrink-0 flex-col items-stretch justify-start whitespace-normal p-4 text-start text-sm lg:min-w-0 lg:p-3" dir={direction}>
+            <span className="block text-sm font-medium">{formatDayLabel(locale, day.date, state.data.generatedAt, t('common.today'), t('common.tomorrow'))}</span>
             <span className="mt-1 block text-lg font-semibold tabular-nums">{day.fishing.score}</span>
-            <span className="block text-sm text-muted-foreground">{day.fishing.label} · Safety {day.safety.status}</span>
-            <span className="mt-1 block text-sm tabular-nums">Wave {day.maxWaveHeightM?.toFixed(1) ?? '—'} m · {wavePeriodLabel(day.representativeWavePeriodS)}</span>
-            <span className="block text-sm tabular-nums">Wind {day.representativeWindKmh?.toFixed(0) ?? '—'} · {windLabel(day.representativeWindKmh)}</span>
-            <span className="block text-sm" aria-label={weatherLabel(day.weatherCode)}>{weatherSymbol(day.weatherCode)} {weatherLabel(day.weatherCode)}</span>
-            <span className="mt-1 block text-sm text-muted-foreground">{day.bestWindow ? `Best ${formatTimeLabel(day.bestWindow.start)}–${formatTimeLabel(day.bestWindow.end)}` : 'No recommended window'}</span>
+            <span className="block text-sm text-muted-foreground">{fishingStatus(t, day.fishing.label)} · {t('forecast.safetyValue', { status: safetyStatus(t, day.safety.status) })}</span>
+            <span className="mt-1 block text-sm tabular-nums" dir="auto">{t('forecast.waveSummary', { value: formatMeasurement(locale, day.maxWaveHeightM, 'm', 1), detail: wavePeriodBand(t, day.representativeWavePeriodS) })}</span>
+            <span className="block text-sm tabular-nums" dir="auto">{t('forecast.windSummary', { value: formatMeasurement(locale, day.representativeWindKmh, 'km/h'), detail: windBand(t, day.representativeWindKmh) })}</span>
+            <span className="block text-sm" aria-label={weatherStatus(t, day.weatherCode)}>{weatherSymbol(day.weatherCode)} {weatherStatus(t, day.weatherCode)}</span>
+            <span className="mt-1 block text-sm text-muted-foreground">{day.bestWindow ? t('forecast.bestTime', { start: formatTime(locale, day.bestWindow.start), end: formatTime(locale, day.bestWindow.end) }) : t('forecast.noWindow')}</span>
           </Button>
         ))}
       </div>
 
       {selectedReadout ? (
         <div className="sticky top-[7.5rem] z-20 mt-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-primary/30 bg-card/95 px-4 py-3 shadow-premium backdrop-blur md:static md:shadow-none" aria-live="polite">
-          <span className="text-sm font-medium">Selected: {formatTimeLabel(selectedReadout.start)}</span>
-          <span className="text-sm tabular-nums">Fishing {selectedReadout.fishing.score}/100 · {selectedReadout.fishing.label}</span>
-          <span className="text-sm">Safety {selectedReadout.safety.status}</span>
-          <span className="text-xs text-muted-foreground">{selectedReadout.dataQualityLabel}</span>
+          <span className="text-sm font-medium">{t('forecast.selected', { time: formatTime(locale, selectedReadout.start) })}</span>
+          <span className="text-sm tabular-nums">{t('forecast.fishingValue', { score: formatScore(locale, selectedReadout.fishing.score), label: fishingStatus(t, selectedReadout.fishing.label) })}</span>
+          <span className="text-sm">{t('forecast.safetyValue', { status: safetyStatus(t, selectedReadout.safety.status) })}</span>
+          <span className="text-xs text-muted-foreground">{dataQualityStatus(t, selectedReadout.dataQuality)}</span>
         </div>
       ) : null}
 
       <div className="mt-5 flex flex-col gap-3 rounded-lg border border-border/70 bg-muted/10 p-3 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex gap-1 overflow-x-auto pb-1" role="group" aria-label="Forecast interval">{INTERVALS.map((item) => <Button key={item.id} type="button" size="sm" variant={interval === item.id ? 'controlActive' : 'control'} aria-pressed={interval === item.id} onClick={() => setInterval(item.id)} className="shrink-0">{item.label}</Button>)}</div>
-        <div className="flex gap-1 overflow-x-auto pb-1" role="group" aria-label="Forecast range"><Button type="button" size="sm" variant={scope === 'day' ? 'controlActive' : 'control'} aria-pressed={scope === 'day'} onClick={() => setScope('day')} className="shrink-0">Selected day</Button><Button type="button" size="sm" variant={scope === 'seven-days' ? 'controlActive' : 'control'} aria-pressed={scope === 'seven-days'} onClick={() => { setScope('seven-days'); if (interval === '30m' || interval === '1h') setInterval('3h'); }} className="shrink-0">All 7 days</Button></div>
-        <div className="flex gap-1 overflow-x-auto pb-1" role="group" aria-label="Forecast view">{VIEWS.map((item) => <Button key={item.id} type="button" size="sm" variant={view === item.id ? 'controlActive' : 'control'} aria-pressed={view === item.id} onClick={() => setView(item.id)} className="shrink-0">{item.label}</Button>)}</div>
+        <div className="flex gap-1 overflow-x-auto pb-1" role="group" aria-label={t('forecast.intervalGroup')}>{INTERVALS.map((item) => <Button key={item.id} type="button" size="sm" variant={interval === item.id ? 'controlActive' : 'control'} aria-pressed={interval === item.id} onClick={() => setInterval(item.id)} className="shrink-0">{t(item.labelKey)}</Button>)}</div>
+        <div className="flex gap-1 overflow-x-auto pb-1" role="group" aria-label={t('forecast.rangeGroup')}><Button type="button" size="sm" variant={scope === 'day' ? 'controlActive' : 'control'} aria-pressed={scope === 'day'} onClick={() => setScope('day')} className="shrink-0">{t('forecast.scope.day')}</Button><Button type="button" size="sm" variant={scope === 'seven-days' ? 'controlActive' : 'control'} aria-pressed={scope === 'seven-days'} onClick={() => { setScope('seven-days'); if (interval === '30m' || interval === '1h') setInterval('3h'); }} className="shrink-0">{t('forecast.scope.week')}</Button></div>
+        <div className="flex gap-1 overflow-x-auto pb-1" role="group" aria-label={t('forecast.viewGroup')}>{VIEWS.map((item) => <Button key={item.id} type="button" size="sm" variant={view === item.id ? 'controlActive' : 'control'} aria-pressed={view === item.id} onClick={() => setView(item.id)} className="shrink-0">{t(item.labelKey)}</Button>)}</div>
       </div>
     </PremiumCard>
       <div className="grid min-w-0 gap-5 min-[1750px]:grid-cols-[minmax(0,1fr)_320px]">
@@ -428,7 +444,7 @@ export function ForecastExperience({
           {view === 'graph' ? <ForecastGraphs periods={periods} selectedTimestamp={selectedViewTimestamp} onSelectTimestamp={setSelectedTimestamp} /> : null}
           {view === 'timeline' ? <ForecastTimeline periods={timelinePeriods} selectedTimestamp={selectedTimelineTimestamp} onSelectTimestamp={setSelectedTimestamp} /> : null}
         </div>
-        <ForecastInsightPanel day={selectedDay} selected={selectedReadout ?? null} interpretation={interpretation} />
+        <ForecastInsightPanel day={selectedDay} selected={selectedReadout ?? null} />
       </div>
       <div id="spot-comparison" className="scroll-mt-24"><ForecastComparison date={selectedDate} time={comparisonTime} /></div>
     </div>

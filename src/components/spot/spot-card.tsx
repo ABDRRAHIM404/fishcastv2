@@ -6,21 +6,8 @@ import { Badge } from '@/components/ui/badge';
 import { fadeInUp } from '@/components/shared/motion';
 import type { SpotPreview } from '@/types';
 import { cn } from '@/lib/utils';
-
-const typeLabels: Record<SpotPreview['type'], string> = {
-  beach: 'Beach',
-  rocks: 'Rocks',
-  port: 'Port',
-  river_mouth: 'River Mouth',
-  pier: 'Pier',
-};
-
-const difficultyLabels: Record<SpotPreview['difficulty'], string> = {
-  beginner: 'Beginner',
-  intermediate: 'Intermediate',
-  advanced: 'Advanced',
-  expert: 'Expert',
-};
+import { useI18n } from '@/i18n/provider';
+import { difficultyLabel, spotTypeLabel } from '@/i18n/presentation';
 
 /**
  * SpotCard shell — premium card with a hero image area, type and difficulty
@@ -33,6 +20,7 @@ export function SpotCard({
   spot: SpotPreview;
   className?: string;
 }) {
+  const { t } = useI18n();
   return (
     <motion.article
       variants={fadeInUp}
@@ -51,9 +39,9 @@ export function SpotCard({
           className="object-cover transition-transform duration-500 group-hover:scale-105"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-background/90 via-background/20 to-transparent" />
-        <div className="absolute left-3 top-3 flex gap-2">
-          <Badge variant="secondary">{typeLabels[spot.type]}</Badge>
-          <Badge variant="outline">{difficultyLabels[spot.difficulty]}</Badge>
+        <div className="absolute top-3 flex gap-2 [inset-inline-start:0.75rem]">
+          <Badge variant="secondary">{spotTypeLabel(t, spot.type)}</Badge>
+          <Badge variant="outline">{difficultyLabel(t, spot.difficulty)}</Badge>
         </div>
       </div>
       <div className="p-5">

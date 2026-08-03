@@ -8,6 +8,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { fadeInUp } from '@/components/shared/motion';
 import { useAiRecommendation } from '@/hooks/use-ai-recommendation';
 import type { AiVerdict } from '@/lib/ai/types';
+import { useI18n } from '@/i18n/provider';
+import { confidenceStatus } from '@/i18n/presentation';
 
 const VERDICT_VARIANT: Record<
   AiVerdict,
@@ -19,13 +21,6 @@ const VERDICT_VARIANT: Record<
   poor: 'poor',
 };
 
-const VERDICT_LABEL: Record<AiVerdict, string> = {
-  excellent: 'Excellent',
-  good: 'Good',
-  moderate: 'Moderate',
-  poor: 'Poor',
-};
-
 /**
  * AI recommendation card for the spot details page. Renders the structured,
  * interpretive summary produced from deterministic platform outputs. Display
@@ -33,13 +28,14 @@ const VERDICT_LABEL: Record<AiVerdict, string> = {
  * deterministic fallback is rendered identically, without an AI flourish.
  */
 export function AiRecommendationCard({ spotId }: { spotId: string }) {
+  const { locale, t } = useI18n();
   const { state } = useAiRecommendation(spotId);
 
   return (
     <PremiumCard className="p-6">
       <div className="flex items-center gap-2">
         <Sparkles className="size-5 text-primary" aria-hidden />
-        <h2 className="font-display text-h3">AI recommendation</h2>
+        <h2 className="font-display text-h3">{t('ai.title')}</h2>
       </div>
 
       {state.status === 'loading' ? (
@@ -50,7 +46,7 @@ export function AiRecommendationCard({ spotId }: { spotId: string }) {
         </div>
       ) : state.status === 'error' ? (
         <p className="mt-4 text-sm text-muted-foreground">
-          The recommendation is unavailable right now.
+          {t('ai.unavailable')}
         </p>
       ) : (
         <motion.div
@@ -61,15 +57,21 @@ export function AiRecommendationCard({ spotId }: { spotId: string }) {
         >
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant={VERDICT_VARIANT[state.data.recommendation.verdict]}>
-              {VERDICT_LABEL[state.data.recommendation.verdict]}
+              {state.data.recommendation.verdict === 'excellent'
+                ? t('status.fishing.excellent')
+                : state.data.recommendation.verdict === 'good'
+                  ? t('status.fishing.good')
+                  : state.data.recommendation.verdict === 'moderate'
+                    ? t('status.fishing.moderate')
+                    : t('status.fishing.poor')}
             </Badge>
             <Badge variant="outline">
               {state.data.source === 'gemini'
-                ? 'AI-generated'
-                : 'Deterministic fallback'}
+                ? t('ai.generated')
+                : t('ai.fallback')}
             </Badge>
             <span className="text-sm capitalize text-muted-foreground">
-              {state.data.recommendation.confidence} confidence
+              {confidenceStatus(t, state.data.recommendation.confidence)}
             </span>
             {state.data.recommendation.bestWindow ? (
               <span className="inline-flex items-center gap-1 text-sm text-muted-foreground">
@@ -79,9 +81,10 @@ export function AiRecommendationCard({ spotId }: { spotId: string }) {
             ) : null}
           </div>
 
-          <p className="text-body-lg text-muted-foreground">
+          <p className="text-body-lg text-muted-foreground" dir="auto" lang="en">
             {state.data.recommendation.summary}
           </p>
+          {locale !== 'en' ? <p className="text-xs text-muted-foreground">{t('ai.summaryUnavailable')}</p> : null}
         </motion.div>
       )}
     </PremiumCard>

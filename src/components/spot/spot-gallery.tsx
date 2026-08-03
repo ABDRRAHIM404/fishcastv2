@@ -7,6 +7,7 @@ import { ImageIcon } from 'lucide-react';
 import { PremiumCard } from '@/components/spot/premium-card';
 import { staggerContainer, fadeInUp } from '@/components/shared/motion';
 import type { SpotPhoto } from '@/lib/spots/photos';
+import { useI18n } from '@/i18n/provider';
 
 /**
  * Responsive photo gallery for the spot details page. Renders nothing when the
@@ -21,11 +22,12 @@ export function SpotGallery({
   spotName: string;
 }) {
   const [failedImages, setFailedImages] = useState<Set<string>>(new Set());
+  const { t } = useI18n();
   if (photos.length === 0) return null;
 
   return (
     <PremiumCard className="p-6">
-      <h2 className="font-display text-h3">Gallery</h2>
+      <h2 className="font-display text-h3">{t('spot.gallery')}</h2>
       <motion.div
         variants={staggerContainer}
         initial="hidden"
@@ -39,11 +41,11 @@ export function SpotGallery({
             className="group relative aspect-[4/3] overflow-hidden rounded-lg border border-border/60"
           >
             {failedImages.has(photo.id) ? (
-              <div className="flex size-full flex-col items-center justify-center gap-2 bg-secondary/50 text-sm text-muted-foreground"><ImageIcon className="size-6" aria-hidden /><span>Photo unavailable</span></div>
+              <div className="flex size-full flex-col items-center justify-center gap-2 bg-secondary/50 text-sm text-muted-foreground"><ImageIcon className="size-6" aria-hidden /><span>{t('spot.photoUnavailable')}</span></div>
             ) : (
               <Image
                 src={photo.url}
-                alt={`${spotName} — photo ${index + 1}`}
+                alt={t('spot.photoAlt', { spot: spotName, number: index + 1 })}
                 fill
                 sizes="(max-width: 640px) 50vw, 33vw"
                 className="object-cover transition-transform duration-500 group-hover:scale-105"

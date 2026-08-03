@@ -26,17 +26,19 @@ import {
 } from '@/lib/spot-page/state';
 import type { SpotSpecies } from '@/types/species';
 import type { Spot } from '@/types/spot';
+import { useI18n } from '@/i18n/provider';
+import type { TranslationKey } from '@/i18n/types';
 
 const SECTION_ITEMS: Array<{
   id: SpotPageSection;
-  label: string;
+  labelKey: TranslationKey;
   icon: typeof LayoutDashboard;
 }> = [
-  { id: 'overview', label: 'Overview', icon: LayoutDashboard },
-  { id: 'forecast', label: 'Forecast', icon: CalendarDays },
-  { id: 'conditions', label: 'Conditions', icon: Gauge },
-  { id: 'species', label: 'Species', icon: Fish },
-  { id: 'guide', label: 'Spot guide', icon: BookOpen },
+  { id: 'overview', labelKey: 'spot.overview', icon: LayoutDashboard },
+  { id: 'forecast', labelKey: 'spot.forecast', icon: CalendarDays },
+  { id: 'conditions', labelKey: 'spot.conditions', icon: Gauge },
+  { id: 'species', labelKey: 'spot.species', icon: Fish },
+  { id: 'guide', labelKey: 'spot.guide', icon: BookOpen },
 ];
 
 interface Props {
@@ -64,6 +66,7 @@ export function SpotPageExperience({
   initialScope,
   spots,
 }: Props) {
+  const { direction, t } = useI18n();
   const [section, setSection] = useState(initialSection);
   const [forecastIntent, setForecastIntent] =
     useState<ForecastNavigationIntent>({ token: 0 });
@@ -127,10 +130,13 @@ export function SpotPageExperience({
   ) {
     let nextIndex: number | null = null;
     if (event.key === 'ArrowRight') {
-      nextIndex = (currentIndex + 1) % SECTION_ITEMS.length;
+      nextIndex =
+        (currentIndex + (direction === 'rtl' ? -1 : 1) + SECTION_ITEMS.length) %
+        SECTION_ITEMS.length;
     } else if (event.key === 'ArrowLeft') {
       nextIndex =
-        (currentIndex - 1 + SECTION_ITEMS.length) % SECTION_ITEMS.length;
+        (currentIndex + (direction === 'rtl' ? 1 : -1) + SECTION_ITEMS.length) %
+        SECTION_ITEMS.length;
     } else if (event.key === 'Home') {
       nextIndex = 0;
     } else if (event.key === 'End') {
@@ -155,7 +161,7 @@ export function SpotPageExperience({
       <nav
         id="spot-section-navigation"
         className="sticky top-16 z-30 -mx-4 overflow-x-auto border-y border-border/70 bg-background/95 px-4 py-2 backdrop-blur-md md:top-0 md:mx-0 md:rounded-xl md:border"
-        aria-label="Spot sections"
+        aria-label={t('spot.sections')}
       >
         <div className="flex min-w-max gap-1" role="tablist">
           {SECTION_ITEMS.map((item, index) => {
@@ -176,7 +182,7 @@ export function SpotPageExperience({
                 className="shrink-0"
               >
                 <Icon className="size-4" aria-hidden />
-                {item.label}
+                {t(item.labelKey)}
               </Button>
             );
           })}
@@ -186,7 +192,7 @@ export function SpotPageExperience({
       <section
         id="spot-section-panel"
         role="tabpanel"
-        aria-label={SECTION_ITEMS.find((item) => item.id === section)?.label}
+        aria-label={t(SECTION_ITEMS.find((item) => item.id === section)?.labelKey ?? 'spot.overview')}
         className="min-w-0 scroll-mt-32 md:scroll-mt-20"
       >
         <ForecastExperience
@@ -205,8 +211,8 @@ export function SpotPageExperience({
         <div hidden={section !== 'overview'} className="mt-5">
           <div className="rounded-xl border border-border/70 bg-card/40 p-4 sm:p-5">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <div><div className="flex items-center gap-2"><Sparkles className="size-5 text-primary" aria-hidden /><h2 className="font-display text-h3">Optional AI advice</h2></div><p className="mt-1 text-sm text-muted-foreground">Gemini interpretation or deterministic fallback, kept separate from FishCast calculations.</p></div>
-              <Button type="button" variant={aiOpen ? 'controlActive' : 'control'} onClick={() => setAiOpen((value) => !value)} aria-expanded={aiOpen}>{aiOpen ? 'Hide advice' : 'Load advice'}</Button>
+              <div><div className="flex items-center gap-2"><Sparkles className="size-5 text-primary" aria-hidden /><h2 className="font-display text-h3">{t('ai.optionalTitle')}</h2></div><p className="mt-1 text-sm text-muted-foreground">{t('ai.optionalDescription')}</p></div>
+              <Button type="button" variant={aiOpen ? 'controlActive' : 'control'} onClick={() => setAiOpen((value) => !value)} aria-expanded={aiOpen}>{aiOpen ? t('ai.hide') : t('ai.load')}</Button>
             </div>
           </div>
           {aiOpen ? <div className="mt-3"><AiRecommendationCard spotId={spot.id} /></div> : null}

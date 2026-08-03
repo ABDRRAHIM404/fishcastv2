@@ -7,19 +7,19 @@ export type NavigationIcon =
   | 'favorites';
 
 export interface NavigationDestination {
-  title: string;
+  label: NavigationIcon;
   href: string;
   icon: NavigationIcon;
 }
 
 /** Every destination below resolves to a real application page. */
 export const DESKTOP_NAVIGATION: readonly NavigationDestination[] = [
-  { title: 'Overview', href: '/', icon: 'home' },
-  { title: 'Forecast', href: '/forecast', icon: 'forecast' },
-  { title: 'Map', href: '/map', icon: 'map' },
-  { title: 'Spots', href: '/spots', icon: 'spots' },
-  { title: 'Species', href: '/species', icon: 'species' },
-  { title: 'Favourites', href: '/favorites', icon: 'favorites' },
+  { label: 'home', href: '/', icon: 'home' },
+  { label: 'forecast', href: '/forecast', icon: 'forecast' },
+  { label: 'map', href: '/map', icon: 'map' },
+  { label: 'spots', href: '/spots', icon: 'spots' },
+  { label: 'species', href: '/species', icon: 'species' },
+  { label: 'favorites', href: '/favorites', icon: 'favorites' },
 ] as const;
 
 export const MOBILE_PRIMARY_NAVIGATION = DESKTOP_NAVIGATION.slice(0, 4);
@@ -57,4 +57,3 @@ export function parseShellPreference(raw: string | null): {
   }
   return { collapsed: false };
 }
-

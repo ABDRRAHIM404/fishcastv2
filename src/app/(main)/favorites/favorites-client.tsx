@@ -6,8 +6,10 @@ import { PageTransition } from '@/components/shared/motion';
 import { Button } from '@/components/ui/button';
 import { useLocalFavorites } from '@/hooks/use-local-favorites';
 import type { Spot } from '@/types/spot';
+import { useI18n } from '@/i18n/provider';
 
 export function FavoritesClient({ spots }: { spots: Spot[] }) {
+  const { t } = useI18n();
   const {
     status,
     error,
@@ -25,10 +27,9 @@ export function FavoritesClient({ spots }: { spots: Spot[] }) {
   return (
     <PageTransition className="space-y-4">
       <div>
-        <h1 className="font-display text-h1">Favorites</h1>
+        <h1 className="font-display text-h1">{t('favourites.title')}</h1>
         <p className="text-muted-foreground">
-          Spots saved only on this device. Clearing browser storage removes
-          them.
+          {t('favourites.description')}
         </p>
       </div>
 
@@ -38,27 +39,26 @@ export function FavoritesClient({ spots }: { spots: Spot[] }) {
           aria-busy="true"
           aria-live="polite"
         >
-          <p className="font-medium">Loading saved spots…</p>
+          <p className="font-medium">{t('favourites.loading')}</p>
         </div>
       ) : error ? (
         <div
           className="rounded-2xl border border-destructive/50 bg-destructive/10 px-6 py-5 text-destructive"
           role="alert"
         >
-          {error}
+          {t('favourites.storageError')}
         </div>
       ) : favoriteSpots.length === 0 ? (
         <div className="rounded-2xl border border-border/70 bg-card/40 px-6 py-12 text-center">
-          <p className="font-display text-h3">No saved spots yet</p>
+          <p className="font-display text-h3">{t('favourites.emptyTitle')}</p>
           <p className="mx-auto mt-2 max-w-sm text-muted-foreground">
-            Browse the map and tap the heart on any spot to save it here for
-            quick access.
+            {t('favourites.emptyDescription')}
           </p>
           <Link
             href="/map"
             className="mt-5 inline-flex items-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
           >
-            Explore the map
+            {t('home.exploreMap')}
           </Link>
         </div>
       ) : (
@@ -79,9 +79,9 @@ export function FavoritesClient({ spots }: { spots: Spot[] }) {
                 variant="outline"
                 size="sm"
                 onClick={() => removeFavorite(spot.id)}
-                aria-label={`Remove ${spot.name} from favorites`}
+                aria-label={t('favourites.removeLabel', { spot: spot.name })}
               >
-                Remove
+                {t('common.remove')}
               </Button>
             </li>
           ))}

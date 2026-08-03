@@ -6,12 +6,9 @@ import { motion } from 'framer-motion';
 import { ImageIcon, Loader2, MapPin } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { transitions } from '@/components/shared/motion';
-import {
-  SPOT_TYPE_LABELS,
-  DIFFICULTY_LABELS,
-  DIFFICULTY_BADGE_VARIANT,
-  type Spot,
-} from '@/types/spot';
+import { DIFFICULTY_BADGE_VARIANT, type Spot } from '@/types/spot';
+import { useI18n } from '@/i18n/provider';
+import { difficultyLabel, spotTypeLabel } from '@/i18n/presentation';
 
 /**
  * Premium hero for the spot details page: large image with an ocean-gradient
@@ -26,6 +23,7 @@ export function SpotHero({
   pendingSpotName?: string;
 }) {
   const [imageFailed, setImageFailed] = useState(false);
+  const { t } = useI18n();
   const updating = Boolean(pendingSpotName);
   return (
     <section className="relative overflow-hidden rounded-2xl border border-border/70 shadow-premium" aria-busy={updating}>
@@ -57,17 +55,17 @@ export function SpotHero({
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ ...transitions.smooth, delay: 0.1 }}
-        className="absolute bottom-0 left-0 right-0 p-4 sm:p-6"
+        className="absolute inset-x-0 bottom-0 p-4 sm:p-6"
       >
         {!updating ? <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="secondary">{SPOT_TYPE_LABELS[spot.spotType]}</Badge>
+          <Badge variant="secondary">{spotTypeLabel(t, spot.spotType)}</Badge>
           <Badge variant={DIFFICULTY_BADGE_VARIANT[spot.difficultyLevel]}>
-            {DIFFICULTY_LABELS[spot.difficultyLevel]}
+            {difficultyLabel(t, spot.difficultyLevel)}
           </Badge>
         </div> : null}
         <h1 className="mt-3 font-display text-h1 sm:text-display">{pendingSpotName ?? spot.name}</h1>
         {updating ? (
-          <p className="mt-2 flex items-center gap-2 text-muted-foreground" role="status"><Loader2 className="size-4 animate-spin text-primary" aria-hidden />Updating spot details and forecast…</p>
+          <p className="mt-2 flex items-center gap-2 text-muted-foreground" role="status"><Loader2 className="size-4 animate-spin text-primary" aria-hidden />{t('spot.updating')}</p>
         ) : spot.region ? (
           <p className="mt-1 flex items-center gap-1 text-muted-foreground">
             <MapPin className="size-4" />
