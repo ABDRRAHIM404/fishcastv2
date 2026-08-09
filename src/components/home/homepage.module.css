@@ -128,6 +128,37 @@
   transform-style: preserve-3d;
 }
 
+.webglLayer {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 500ms ease;
+}
+
+.webglLayer > div,
+.webglLayer canvas {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+[data-webgl-ready='true'] .webglLayer {
+  opacity: 1;
+}
+
+[data-webgl-ready='true'] .oceanWorld,
+[data-webgl-ready='true'] .visualPlane {
+  visibility: hidden;
+  opacity: 0 !important;
+}
+
+[data-webgl-ready='true'] .oceanWorld *,
+[data-webgl-ready='true'] .visualPlane * {
+  animation-play-state: paused;
+}
+
 .scene {
   z-index: 5;
   display: grid;
@@ -821,7 +852,7 @@
   .coastScene { inset: 35% -18% 4% 5%; border-radius: 1.5rem; transform: rotateX(57deg) rotateZ(-7deg) scale(1.08); }
   .markerName { display: none; }
   .selectedMarker .markerName { display: block; }
-  .spotScene { display: flex; flex-direction: column; justify-content: space-between; padding-bottom: max(1.25rem, env(safe-area-inset-bottom)); }
+  .spotScene { display: flex; flex-direction: column; justify-content: space-between; padding-bottom: calc(5.75rem + env(safe-area-inset-bottom)); }
   .spotScene .storyCopy { align-self: auto; width: 100%; }
   .selectedSpotCard { width: 100%; margin: 0; }
   .conditionsScene { padding-top: 3.4rem; }
@@ -835,7 +866,7 @@
   .conditionChip[data-position='3'] { inset-inline-start: 2%; top: 66%; }
   .conditionChip[data-position='4'] { inset-inline-start: 36%; top: 4%; }
   .analysisCore { inset: 33%; }
-  .decisionScene { display: flex; flex-direction: column; justify-content: space-between; gap: 1rem; padding-top: 2.7rem; padding-bottom: max(1rem, env(safe-area-inset-bottom)); }
+  .decisionScene { display: flex; flex-direction: column; justify-content: space-between; gap: 1rem; padding-top: 2.7rem; padding-bottom: calc(5.75rem + env(safe-area-inset-bottom)); }
   .decisionScene .storyTitle { font-size: clamp(2.25rem, 10vw, 3.5rem); }
   .decisionScene .storyDescription { margin-top: 0.7rem; }
   .decisionScene .heroActions { display: none; }
@@ -899,6 +930,7 @@
 
   .coastPlane,
   .intelligencePlane,
+  .webglLayer,
   .progressRail,
   .scrollCue {
     display: none;
@@ -945,6 +977,7 @@
   .story[data-motion-mode='reduced'] .scene { min-height: min(100svh, 48rem); padding-block: 5rem; background: linear-gradient(180deg, rgba(3, 18, 28, 0.12), rgba(3, 18, 28, 0.96)); }
   .story[data-motion-mode='reduced'] .coastPlane,
   .story[data-motion-mode='reduced'] .intelligencePlane,
+  .story[data-motion-mode='reduced'] .webglLayer,
   .story[data-motion-mode='reduced'] .progressRail,
   .story[data-motion-mode='reduced'] .scrollCue { display: none; }
   .story[data-motion-mode='reduced'] .spotScene,

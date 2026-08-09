@@ -35,6 +35,7 @@ import {
 } from 'framer-motion';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Homepage3DEnhancement } from '@/components/home/three/homepage-3d-loader';
 import { useI18n } from '@/i18n/provider';
 import type { TranslationKey } from '@/i18n/types';
 import { difficultyLabel, spotTypeLabel } from '@/i18n/presentation';
@@ -47,6 +48,7 @@ import {
   shouldUseStaticStory,
   type HomeMotionMode,
 } from '@/lib/homepage/story';
+import { homeSceneOpacity } from '@/lib/homepage/journey';
 import { cn } from '@/lib/utils';
 import {
   DIFFICULTY_BADGE_VARIANT,
@@ -287,36 +289,57 @@ function CinematicStory({ spots }: { spots: readonly Spot[] }) {
   const systemReducedMotion = Boolean(useReducedMotion());
   const [motionMode, setMotionMode] = useState<HomeMotionMode>('auto');
   const [animationsPaused, setAnimationsPaused] = useState(false);
+  const [webglReady, setWebglReady] = useState(false);
   const staticStory = shouldUseStaticStory(systemReducedMotion, motionMode);
   const selectedSpot = spots.find((spot) => spot.slug === 'tifnit') ?? spots[0];
   const { scrollYProgress } = useScroll({
     target: storyRef,
     offset: ['start start', 'end end'],
   });
-  const progress = useSpring(scrollYProgress, {
-    stiffness: 90,
-    damping: 28,
-    mass: 0.32,
-  });
   const pointerX = useMotionValue(0);
   const pointerY = useMotionValue(0);
   const pointerXSoft = useSpring(pointerX, { stiffness: 110, damping: 24 });
   const pointerYSoft = useSpring(pointerY, { stiffness: 110, damping: 24 });
 
-  const oceanOpacity = useTransform(progress, [0, 0.18, 0.3], [1, 1, 0]);
-  const oceanY = useTransform(progress, [0, 0.28], ['0%', '-8%']);
-  const spotOpacity = useTransform(progress, [0.17, 0.27, 0.43, 0.55], [0, 1, 1, 0]);
-  const spotY = useTransform(progress, [0.17, 0.29, 0.52], ['8%', '0%', '-7%']);
-  const coastOpacity = useTransform(progress, [0.18, 0.3, 0.46, 0.58], [0, 1, 1, 0]);
-  const coastScale = useTransform(progress, [0.18, 0.47], [1.1, 0.96]);
-  const conditionsOpacity = useTransform(progress, [0.41, 0.51, 0.69, 0.8], [0, 1, 1, 0]);
-  const conditionsY = useTransform(progress, [0.41, 0.54, 0.78], ['8%', '0%', '-6%']);
-  const intelligenceScale = useTransform(progress, [0.43, 0.6, 0.78], [0.82, 1, 1.08]);
-  const decisionOpacity = useTransform(progress, [0.7, 0.8, 1], [0, 1, 1]);
-  const decisionY = useTransform(progress, [0.7, 0.84], ['9%', '0%']);
+  // Primary storytelling follows raw scroll progress exactly. There is no
+  // temporal spring, so fast and reverse scrolling never has to catch up.
+  const oceanOpacity = useTransform(scrollYProgress, (value) => homeSceneOpacity('ocean', value));
+  const oceanY = useTransform(oceanOpacity, [0, 1], ['2.5%', '0%']);
+  const spotOpacity = useTransform(scrollYProgress, (value) => homeSceneOpacity('spot', value));
+  const spotY = useTransform(spotOpacity, [0, 1], ['2.5%', '0%']);
+  const coastOpacity = useTransform(scrollYProgress, [0.2, 0.29, 0.43, 0.48], [0, 1, 1, 0]);
+  const coastScale = useTransform(scrollYProgress, [0.2, 0.47], [1.08, 0.96]);
+  const conditionsOpacity = useTransform(scrollYProgress, (value) => homeSceneOpacity('conditions', value));
+  const conditionsY = useTransform(conditionsOpacity, [0, 1], ['2.5%', '0%']);
+  const intelligenceScale = useTransform(scrollYProgress, [0.46, 0.6, 0.74], [0.86, 1, 1.06]);
+  const decisionOpacity = useTransform(scrollYProgress, (value) => homeSceneOpacity('decision', value));
+  const decisionY = useTransform(decisionOpacity, [0, 1], ['2.5%', '0%']);
+
+  const webglSpots = useMemo(
+    () => spots.map((spot) => ({
+      id: spot.id,
+      slug: spot.slug,
+      name: publicSpotName(spot.slug, spot.name),
+      latitude: spot.latitude,
+      longitude: spot.longitude,
+    })),
+    [spots]
+  );
+  const webglLabels = useMemo(() => ({
+    wind: t('home.capability.wind'),
+    waves: t('home.capability.waves'),
+    swell: t('conditions.primarySwell'),
+    tide: t('home.capability.tide'),
+    weather: t('home.capability.weather'),
+  }), [t]);
 
   useEffect(() => {
-    const stored = parseHomeMotionPreference(localStorage.getItem(HOME_MOTION_PREFERENCE_KEY));
+    let stored: HomeMotionMode = 'auto';
+    try {
+      stored = parseHomeMotionPreference(localStorage.getItem(HOME_MOTION_PREFERENCE_KEY));
+    } catch {
+      // Storage restrictions keep the safe automatic preference.
+    }
     if (stored !== 'auto') {
       setMotionMode(stored);
       return;
@@ -331,17 +354,24 @@ function CinematicStory({ spots }: { spots: readonly Spot[] }) {
     if (!stage) return;
     let visible = true;
     const updatePaused = () => setAnimationsPaused(!visible || document.hidden);
-    const observer = new IntersectionObserver(([entry]) => {
-      visible = Boolean(entry?.isIntersecting);
-      updatePaused();
-    });
-    observer.observe(stage);
+    const observer = typeof IntersectionObserver === 'undefined'
+      ? null
+      : new IntersectionObserver(([entry]) => {
+          visible = Boolean(entry?.isIntersecting);
+          updatePaused();
+        });
+    updatePaused();
+    observer?.observe(stage);
     document.addEventListener('visibilitychange', updatePaused);
     return () => {
-      observer.disconnect();
+      observer?.disconnect();
       document.removeEventListener('visibilitychange', updatePaused);
     };
   }, []);
+
+  useEffect(() => {
+    if (staticStory) setWebglReady(false);
+  }, [staticStory]);
 
   useEffect(() => () => {
     if (pointerFrame.current !== null) cancelAnimationFrame(pointerFrame.current);
@@ -373,6 +403,9 @@ function CinematicStory({ spots }: { spots: readonly Spot[] }) {
     pointerY.set(0);
   }, [pointerX, pointerY]);
 
+  const handleWebglReady = useCallback(() => setWebglReady(true), []);
+  const handleWebglFailure = useCallback(() => setWebglReady(false), []);
+
   return (
     <>
       <noscript>
@@ -384,6 +417,7 @@ function CinematicStory({ spots }: { spots: readonly Spot[] }) {
         aria-label={t('home.story.eyebrow')}
         data-motion-mode={staticStory ? 'reduced' : motionMode}
         data-animations-paused={animationsPaused ? 'true' : 'false'}
+        data-webgl-ready={webglReady ? 'true' : 'false'}
       >
         <div
           ref={stageRef}
@@ -393,6 +427,18 @@ function CinematicStory({ spots }: { spots: readonly Spot[] }) {
           onPointerLeave={resetPointer}
         >
           <OceanLayers pointerX={pointerXSoft} pointerY={pointerYSoft} />
+          <Homepage3DEnhancement
+            active={!animationsPaused}
+            className={styles.webglLayer}
+            progress={scrollYProgress}
+            pointerX={pointerXSoft}
+            pointerY={pointerYSoft}
+            reducedMotion={staticStory}
+            spots={webglSpots}
+            labels={webglLabels}
+            onReady={handleWebglReady}
+            onFailure={handleWebglFailure}
+          />
 
           <motion.div
             className={cn(styles.scene, styles.oceanScene)}

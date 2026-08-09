@@ -186,6 +186,8 @@ describe('localized source audit', () => {
     const files = [
       'src/components/shared/app-shell.tsx',
       'src/components/shared/language-selector.tsx',
+      'src/components/home/homepage-experience.tsx',
+      'src/components/home/three/homepage-3d-loader.tsx',
       'src/components/forecast/forecast-experience.tsx',
       'src/components/forecast/forecast-overview.tsx',
       'src/components/forecast/forecast-conditions.tsx',
