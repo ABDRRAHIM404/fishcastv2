@@ -150,7 +150,8 @@ export function AppShell({
     return () => window.removeEventListener('keydown', handleDialogKeys);
   }, [moreOpen]);
 
-  const widePage = /^\/spots\/[^/]+/.test(pathname) || pathname === '/map';
+  const widePage =
+    pathname === '/' || /^\/spots\/[^/]+/.test(pathname) || pathname === '/map';
   const mobileMoreActive = MOBILE_MORE_NAVIGATION.some((item) =>
     isNavigationActive(pathname, item)
   );
