@@ -10,6 +10,10 @@
 # production
 /build
 
+# Large, lossless source media retained locally; only optimized derivatives
+# belong under public/ and in version control.
+/.source-assets/
+
 # misc
 .DS_Store
 *.pem

@@ -1,9 +1,21 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  // Three ships modern ESM. Explicit transpilation keeps the lazy R3F chunk
-  // consistent across Next's server and browser compilation pipelines.
-  transpilePackages: ['three'],
+  async headers() {
+    return [
+      {
+        // Sequence URLs are content-versioned, so decoded frames can be reused
+        // across visits without revalidating hundreds of immutable assets.
+        source: '/homepage/sequence/v1/:path*',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=31536000, immutable',
+          },
+        ],
+      },
+    ];
+  },
   images: {
     remotePatterns: [
       { protocol: 'https', hostname: 'images.unsplash.com' },
