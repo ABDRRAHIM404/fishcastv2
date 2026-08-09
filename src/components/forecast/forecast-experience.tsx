@@ -197,28 +197,39 @@ export function ForecastExperience({
 
   useEffect(() => {
     if (state.status !== 'ready') return;
+    if (state.weekStatus !== 'ready') return;
     if (!state.data.days.some((day) => day.date === selectedDate)) {
       setSelectedDate(state.data.selectedDate);
     }
   }, [selectedDate, state]);
 
+  const weekReady =
+    state.status === 'ready' && state.weekStatus === 'ready';
+  const displayDate =
+    state.status === 'ready' && !weekReady
+      ? state.data.range.startDate
+      : selectedDate;
   const selectedDay =
     state.status === 'ready'
-      ? state.data.days.find((day) => day.date === selectedDate) ?? state.data.days[0]
+      ? state.data.days.find((day) => day.date === displayDate) ?? state.data.days[0]
       : undefined;
   const periods = useMemo(() => {
     if (state.status !== 'ready') return [];
     const all = state.data.periods[interval];
-    return periodsForScope(all, selectedDate, scope);
-  }, [interval, scope, selectedDate, state]);
+    return periodsForScope(
+      all,
+      displayDate,
+      weekReady ? scope : 'day'
+    );
+  }, [displayDate, interval, scope, state, weekReady]);
   const timelinePeriods = useMemo(
     () =>
       state.status === 'ready'
         ? state.data.periods['30m'].filter(
-            (period) => period.date === selectedDate
+            (period) => period.date === displayDate
           )
         : [],
-    [selectedDate, state]
+    [displayDate, state]
   );
   useEffect(() => {
     if (timelinePeriods.length === 0) return;
@@ -309,15 +320,17 @@ export function ForecastExperience({
   }
 
   const dayIndex = state.data.days.findIndex((day) => day.date === selectedDay.date);
+  const weekLoading = state.weekStatus === 'loading';
+  const weekError = state.weekStatus === 'error';
   const availability = providerAvailability(state.data);
   const refreshLabel = forecastCacheLabel(t, state.refreshing, state.data.freshnessMinutes, state.refreshError !== null);
   const availabilityMessage = providerAvailabilityMessage(t, state.data.sourceTimestamps);
   const statusPanel =
-    refreshLabel || availabilityMessage || isNavigatingSpot ? (
+    refreshLabel || availabilityMessage || isNavigatingSpot || !weekReady ? (
       <div
         className={cn(
           'flex flex-wrap items-center justify-between gap-3 rounded-xl border px-4 py-3 text-sm',
-          availability.status === 'unavailable' || state.refreshError
+          availability.status === 'unavailable' || state.refreshError || weekError
             ? 'border-destructive/45 bg-destructive/10'
             : 'border-primary/30 bg-primary/5'
         )}
@@ -328,8 +341,17 @@ export function ForecastExperience({
           <p className="font-medium">
             {isNavigatingSpot
               ? t('forecast.updatingSpot', { spot: spots.find((item) => item.slug === activeSpotSlug)?.displayName ?? t('spot.fallbackName') })
-              : refreshLabel ?? t('forecast.partial')}
+              : weekError
+                ? t('forecast.weekFailed')
+                : weekLoading
+                  ? t('forecast.todayReady')
+                  : refreshLabel ?? t('forecast.partial')}
           </p>
+          {weekLoading ? (
+            <p className="mt-0.5 text-muted-foreground">
+              {t('forecast.weekLoading')}
+            </p>
+          ) : null}
           {availabilityMessage ? (
             <p className="mt-0.5 text-muted-foreground">{availabilityMessage}</p>
           ) : null}
@@ -337,7 +359,7 @@ export function ForecastExperience({
             <p className="mt-0.5 text-muted-foreground">{t('forecast.refreshFailed')}</p>
           ) : null}
         </div>
-        {availability.status !== 'complete' || state.refreshError ? (
+        {availability.status !== 'complete' || state.refreshError || weekError ? (
           <Button type="button" size="sm" variant="control" onClick={refetch}>
             <RotateCw aria-hidden />{t('forecast.retryUnavailable')}
           </Button>
@@ -400,18 +422,18 @@ export function ForecastExperience({
 
       <div className="mt-5 grid gap-3 sm:grid-cols-2">
         <label className="text-sm"><span className="mb-1 block text-muted-foreground">{t('forecast.spot')}</span><select value={activeSpotSlug} aria-busy={isNavigatingSpot} onChange={(event) => switchSpot(event.target.value)} className="min-h-11 w-full cursor-pointer rounded-md border border-border/90 bg-card/55 px-3 text-foreground shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring aria-busy:cursor-progress aria-busy:border-primary/60">{spots.map((spot) => <option key={spot.slug} value={spot.slug}>{spot.displayName}</option>)}</select></label>
-        <label className="text-sm"><span className="mb-1 block text-muted-foreground">{t('forecast.date')}</span><input type="date" value={selectedDate} min={state.data.range.startDate} max={state.data.range.endDate} onChange={(event) => setSelectedDate(event.target.value)} className="min-h-11 w-full rounded-md border border-input bg-background px-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" dir="ltr" /></label>
+        <label className="text-sm"><span className="mb-1 block text-muted-foreground">{t('forecast.date')}</span><input type="date" value={displayDate} min={state.data.range.startDate} max={state.data.range.endDate} disabled={!weekReady} aria-busy={!weekReady} onChange={(event) => setSelectedDate(event.target.value)} className="min-h-11 w-full rounded-md border border-input bg-background px-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-wait disabled:opacity-60" dir="ltr" /></label>
       </div>
 
       <div className="mt-3 flex flex-wrap gap-2">
-        <Button type="button" variant="control" disabled={dayIndex <= 0} onClick={() => setSelectedDate(state.data.days[dayIndex - 1]!.date)}>{direction === 'rtl' ? <ChevronRight aria-hidden /> : <ChevronLeft aria-hidden />}{t('common.previous')}</Button>
-        <Button type="button" variant={selectedDate === state.data.range.startDate ? 'controlActive' : 'control'} aria-pressed={selectedDate === state.data.range.startDate} onClick={() => setSelectedDate(state.data.range.startDate)}>{t('common.today')}</Button>
-        <Button type="button" variant="control" disabled={dayIndex >= state.data.days.length - 1} onClick={() => setSelectedDate(state.data.days[dayIndex + 1]!.date)}>{t('common.next')}{direction === 'rtl' ? <ChevronLeft aria-hidden /> : <ChevronRight aria-hidden />}</Button>
+        <Button type="button" variant="control" disabled={!weekReady || dayIndex <= 0} onClick={() => setSelectedDate(state.data.days[dayIndex - 1]!.date)}>{direction === 'rtl' ? <ChevronRight aria-hidden /> : <ChevronLeft aria-hidden />}{t('common.previous')}</Button>
+        <Button type="button" variant={displayDate === state.data.range.startDate ? 'controlActive' : 'control'} aria-pressed={displayDate === state.data.range.startDate} onClick={() => setSelectedDate(state.data.range.startDate)}>{t('common.today')}</Button>
+        <Button type="button" variant="control" disabled={!weekReady || dayIndex >= state.data.days.length - 1} onClick={() => setSelectedDate(state.data.days[dayIndex + 1]!.date)}>{t('common.next')}{direction === 'rtl' ? <ChevronLeft aria-hidden /> : <ChevronRight aria-hidden />}</Button>
       </div>
 
-      <div className="mt-5 flex gap-2 overflow-x-auto pb-2 lg:grid lg:grid-cols-7" aria-label={t('forecast.daySelector')} dir="ltr">
+      <div className="mt-5 flex gap-2 overflow-x-auto pb-2 lg:grid lg:grid-cols-7" aria-label={t('forecast.daySelector')} aria-busy={!weekReady} dir="ltr">
         {state.data.days.map((day) => (
-          <Button key={day.date} type="button" variant={selectedDate === day.date ? 'controlActive' : 'control'} aria-pressed={selectedDate === day.date} onClick={() => setSelectedDate(day.date)} className="h-auto min-w-48 shrink-0 flex-col items-stretch justify-start whitespace-normal p-4 text-start text-sm lg:min-w-0 lg:p-3" dir={direction}>
+          <Button key={day.date} type="button" variant={displayDate === day.date ? 'controlActive' : 'control'} aria-pressed={displayDate === day.date} onClick={() => setSelectedDate(day.date)} className="h-auto min-w-48 shrink-0 flex-col items-stretch justify-start whitespace-normal p-4 text-start text-sm lg:min-w-0 lg:p-3" dir={direction}>
             <span className="block text-sm font-medium">{formatDayLabel(locale, day.date, state.data.generatedAt, t('common.today'), t('common.tomorrow'))}</span>
             <span className="mt-1 block text-lg font-semibold tabular-nums">{day.fishing.score}</span>
             <span className="block text-sm text-muted-foreground">{fishingStatus(t, day.fishing.label)} · {t('forecast.safetyValue', { status: safetyStatus(t, day.safety.status) })}</span>
@@ -421,6 +443,18 @@ export function ForecastExperience({
             <span className="mt-1 block text-sm text-muted-foreground">{day.bestWindow ? t('forecast.bestTime', { start: formatTime(locale, day.bestWindow.start), end: formatTime(locale, day.bestWindow.end) }) : t('forecast.noWindow')}</span>
           </Button>
         ))}
+        {!weekReady
+          ? Array.from(
+              { length: Math.max(0, 7 - state.data.days.length) },
+              (_, index) => (
+                <Skeleton
+                  key={`pending-day-${index}`}
+                  className="h-52 min-w-48 shrink-0 lg:min-w-0"
+                  aria-hidden="true"
+                />
+              )
+            )
+          : null}
       </div>
 
       {selectedReadout ? (
@@ -434,7 +468,7 @@ export function ForecastExperience({
 
       <div className="mt-5 flex flex-col gap-3 rounded-lg border border-border/70 bg-muted/10 p-3 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex gap-1 overflow-x-auto pb-1" role="group" aria-label={t('forecast.intervalGroup')}>{INTERVALS.map((item) => <Button key={item.id} type="button" size="sm" variant={interval === item.id ? 'controlActive' : 'control'} aria-pressed={interval === item.id} onClick={() => setInterval(item.id)} className="shrink-0">{t(item.labelKey)}</Button>)}</div>
-        <div className="flex gap-1 overflow-x-auto pb-1" role="group" aria-label={t('forecast.rangeGroup')}><Button type="button" size="sm" variant={scope === 'day' ? 'controlActive' : 'control'} aria-pressed={scope === 'day'} onClick={() => setScope('day')} className="shrink-0">{t('forecast.scope.day')}</Button><Button type="button" size="sm" variant={scope === 'seven-days' ? 'controlActive' : 'control'} aria-pressed={scope === 'seven-days'} onClick={() => { setScope('seven-days'); if (interval === '30m' || interval === '1h') setInterval('3h'); }} className="shrink-0">{t('forecast.scope.week')}</Button></div>
+        <div className="flex gap-1 overflow-x-auto pb-1" role="group" aria-label={t('forecast.rangeGroup')}><Button type="button" size="sm" variant={scope === 'day' ? 'controlActive' : 'control'} aria-pressed={scope === 'day'} onClick={() => setScope('day')} className="shrink-0">{t('forecast.scope.day')}</Button><Button type="button" size="sm" variant={weekReady && scope === 'seven-days' ? 'controlActive' : 'control'} aria-pressed={weekReady && scope === 'seven-days'} disabled={!weekReady} onClick={() => { setScope('seven-days'); if (interval === '30m' || interval === '1h') setInterval('3h'); }} className="shrink-0">{t('forecast.scope.week')}</Button></div>
         <div className="flex gap-1 overflow-x-auto pb-1" role="group" aria-label={t('forecast.viewGroup')}>{VIEWS.map((item) => <Button key={item.id} type="button" size="sm" variant={view === item.id ? 'controlActive' : 'control'} aria-pressed={view === item.id} onClick={() => setView(item.id)} className="shrink-0">{t(item.labelKey)}</Button>)}</div>
       </div>
     </PremiumCard>
@@ -446,7 +480,7 @@ export function ForecastExperience({
         </div>
         <ForecastInsightPanel day={selectedDay} selected={selectedReadout ?? null} />
       </div>
-      <div id="spot-comparison" className="scroll-mt-24"><ForecastComparison date={selectedDate} time={comparisonTime} /></div>
+      <div id="spot-comparison" className="scroll-mt-24"><ForecastComparison date={displayDate} time={comparisonTime} /></div>
     </div>
   );
 }

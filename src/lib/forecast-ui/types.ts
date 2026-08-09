@@ -12,6 +12,7 @@ import type {
 export type ForecastInterval = '30m' | '1h' | '3h' | '6h';
 export type ForecastScope = 'day' | 'seven-days';
 export type ForecastView = 'table' | 'graph' | 'timeline';
+export type ForecastCoverage = 'today' | 'week';
 export type SelectedTimestamp = string | null;
 export type ForecastGraphCategory =
   | 'fishing'
@@ -156,6 +157,8 @@ export interface ForecastSpotIdentity {
 
 export interface ForecastContextResponse {
   schemaVersion: 1;
+  /** Explicitly distinguishes the first usable day from the completed week. */
+  coverage: ForecastCoverage;
   spot: ForecastSpotIdentity;
   timeZone: 'Africa/Casablanca';
   range: { startDate: string; endDate: string };
@@ -172,6 +175,24 @@ export interface ForecastContextResponse {
   interpretations: Record<string, ForecastHumanInterpretation>;
   orientationVerified: false;
 }
+
+export type ForecastStreamEvent =
+  | {
+      type: 'today';
+      data: ForecastContextResponse & { coverage: 'today' };
+      elapsedMs: number;
+    }
+  | {
+      type: 'week';
+      data: ForecastContextResponse & { coverage: 'week' };
+      elapsedMs: number;
+      cacheStatus: 'hit' | 'miss' | 'coalesced';
+    }
+  | {
+      type: 'error';
+      stage: ForecastCoverage;
+      code: 'forecast_unavailable';
+    };
 
 export interface ForecastComparisonItem {
   spot: ForecastSpotIdentity;

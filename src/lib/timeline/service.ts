@@ -222,6 +222,89 @@ export async function getTimelinesForSpot(
   return timelines;
 }
 
+/**
+ * Resolves a forecast range in two phases without loading provider anchors
+ * twice. The first requested date is made available as soon as its durable
+ * cache row can be read or rebuilt. Remaining cache reads begin concurrently,
+ * but their CPU-heavy timeline builds wait until the first-day callback has
+ * run so a streaming caller can flush useful data before the week is prepared.
+ *
+ * The provider-anchor promise is lazy: an entirely cached range performs no
+ * provider request, while any number of missing days share exactly one
+ * forecast request and one marine request within this operation.
+ */
+export async function getTimelinesForSpotProgressively(
+  spot: TimelineSpotInput,
+  dates: string[],
+  onFirstTimeline: (timeline: Timeline) => void | Promise<void>,
+  now: Date = new Date()
+): Promise<Timeline[]> {
+  const firstDate = dates[0];
+  if (!firstDate) return [];
+
+  const remainingDates = dates.slice(1);
+  const remainingCachePromise = Promise.all(
+    remainingDates.map((date) => readCache(spot.id, date))
+  );
+  let anchorsPromise: Promise<ForecastAnchors> | null = null;
+  const sharedAnchors = () => {
+    anchorsPromise ??= loadAnchors(spot);
+    return anchorsPromise;
+  };
+
+  const firstCached = await readCache(spot.id, firstDate);
+  let firstTimeline = firstCached;
+  if (!firstTimeline) {
+    const range = productDayRange(firstDate);
+    firstTimeline = buildTimeline(
+      spot,
+      firstDate,
+      range.startMs,
+      range.endMs,
+      await sharedAnchors(),
+      now
+    );
+  }
+
+  // Start persistence now, but do not put this network write on the critical
+  // path to the first streamed forecast event.
+  const firstWritePromise = firstCached
+    ? Promise.resolve()
+    : writeCache(spot.id, firstTimeline.date, firstTimeline);
+
+  await onFirstTimeline(firstTimeline);
+
+  const remainingCached = await remainingCachePromise;
+  const hasMissingRemaining = remainingCached.some(
+    (timeline) => timeline === null
+  );
+  const anchors = hasMissingRemaining ? await sharedAnchors() : null;
+  const remainingTimelines = remainingDates.map((date, index) => {
+    const cached = remainingCached[index];
+    if (cached) return cached;
+    const range = productDayRange(date);
+    return buildTimeline(
+      spot,
+      date,
+      range.startMs,
+      range.endMs,
+      anchors!,
+      now
+    );
+  });
+
+  await Promise.all([
+    firstWritePromise,
+    ...remainingTimelines.map((timeline, index) =>
+      remainingCached[index]
+        ? Promise.resolve()
+        : writeCache(spot.id, timeline.date, timeline)
+    ),
+  ]);
+
+  return [firstTimeline, ...remainingTimelines];
+}
+
 /** Cache-aware resolver for one Casablanca calendar day. */
 export async function getTimelineForSpot(
   spot: TimelineSpotInput,

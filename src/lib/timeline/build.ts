@@ -14,6 +14,7 @@ import { detectDailyWindows, detectWindows } from '@/lib/timeline/windows';
 import {
   degreesToCompass,
   type MarineConditions,
+  type TideConditions,
   type WaveConditions,
 } from '@/types/marine';
 import type {
@@ -21,7 +22,7 @@ import type {
   InputAvailability,
   InputProvenance,
 } from '@/types/forecast';
-import { deriveModelledTideConditions } from '@/lib/tides/derive';
+import { prepareModelledTideDeriver } from '@/lib/tides/derive';
 import { calculateAstronomy } from '@/lib/daylight/solar';
 import { deriveWaveMetrics } from '@/lib/waves/derived';
 import { assessForecastIntegrity } from '@/lib/forecast/integrity';
@@ -127,7 +128,7 @@ function synthMarine(
     temperatureC: number | null;
     visibilityM: number | null;
     weatherCode: number | null;
-    tide: ReturnType<typeof deriveModelledTideConditions>;
+    tide: TideConditions | null;
   }
 ): MarineConditions {
   const weatherPresent = [
@@ -295,6 +296,7 @@ export function buildTimeline(
     anchors.tide.points.map((point) => point.time),
     anchors.tide.points.map((point) => point.heightM)
   );
+  const tideDeriver = prepareModelledTideDeriver(anchors.tide.points);
 
   const marks = windowMarks(startMs, endMs);
   const generatedAt = now.toISOString();
@@ -343,10 +345,7 @@ export function buildTimeline(
     const tide =
       tideHeightM === null
         ? null
-        : deriveModelledTideConditions(
-            anchors.tide.points,
-            new Date(ms)
-          );
+        : tideDeriver.derive(new Date(ms));
     if (tide) tide.heightM = tideHeightM;
 
     const waveMetrics = deriveWaveMetrics({

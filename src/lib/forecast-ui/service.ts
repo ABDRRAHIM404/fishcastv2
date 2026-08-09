@@ -10,6 +10,7 @@ import type {
   ForecastComparisonItem,
   ForecastComparisonResponse,
   ForecastContextResponse,
+  ForecastCoverage,
   ForecastHumanInterpretation,
   ForecastInterval,
   ForecastPeriod,
@@ -21,7 +22,10 @@ import {
   productDateTimeToEpochMs,
   todayProductDate,
 } from '@/lib/time/casablanca';
-import { getTimelinesForSpot } from '@/lib/timeline/service';
+import {
+  getTimelinesForSpot,
+  getTimelinesForSpotProgressively,
+} from '@/lib/timeline/service';
 import type { Timeline } from '@/lib/timeline/types';
 import type { Spot } from '@/types/spot';
 
@@ -30,14 +34,14 @@ export const FORECAST_CONTEXT_CACHE_TTL_MS = 2 * 60 * 1000;
 const FORECAST_CONTEXT_CACHE_MAX_ENTRIES = 12;
 
 interface ForecastContextCacheEntry {
-  data: ForecastContextResponse;
+  data: ForecastContextResponse & { coverage: 'week' };
   expiresAt: number;
 }
 
 const forecastContextCache = new Map<string, ForecastContextCacheEntry>();
 const forecastContextInFlight = new Map<
   string,
-  Promise<ForecastContextResponse>
+  Promise<ForecastContextResponse & { coverage: 'week' }>
 >();
 
 export type ForecastContextCacheStatus = 'hit' | 'miss' | 'coalesced';
@@ -49,17 +53,17 @@ export function forecastContextCacheKey(
   return `forecast-context:v1:${spotId}:${rangeStart}`;
 }
 
-export function selectContextDate(
-  data: ForecastContextResponse,
+export function selectContextDate<T extends ForecastContextResponse>(
+  data: T,
   selectedDate: string
-): ForecastContextResponse {
+): T {
   if (!data.days.some((day) => day.date === selectedDate)) return data;
   return {
     ...data,
     selectedDate,
     interpretation:
       data.interpretations[selectedDate] ?? data.interpretation,
-  };
+  } as T;
 }
 
 function retainBoundedForecastContextCache(): void {
@@ -162,20 +166,22 @@ function interpretationFor(
   };
 }
 
-export async function getForecastContext(
+function projectForecastContext<T extends ForecastCoverage>(
   spot: Spot,
+  timelines: Timeline[],
+  dates: string[],
   selectedDate: string,
-  now: Date = new Date()
-): Promise<ForecastContextResponse> {
-  const startDate = todayProductDate(now);
-  const dates = Array.from({ length: 7 }, (_, index) =>
-    addProductDays(startDate, index)
-  );
-  const [timelines, linkedSpecies, catalog] = await Promise.all([
-    getTimelinesForSpot(spotInput(spot), dates),
-    getSpotSpecies(spot.id).catch(() => []),
-    getSpeciesCatalog().catch(() => []),
-  ]);
+  linkedSpecies: Awaited<ReturnType<typeof getSpotSpecies>>,
+  catalog: Awaited<ReturnType<typeof getSpeciesCatalog>>,
+  coverage: T,
+  now: Date
+): ForecastContextResponse & { coverage: T } {
+  const firstTimeline = timelines[0];
+  const startDate = dates[0];
+  const endDate = dates[6];
+  if (!firstTimeline || !startDate || !endDate) {
+    throw new Error('Forecast context requires at least one timeline');
+  }
   const periods = Object.fromEntries(
     INTERVALS.map((interval) => [
       interval,
@@ -203,7 +209,7 @@ export async function getForecastContext(
     return { ...summary, bestSpecies: representative?.bestSpecies ?? null };
   });
   const selectedTimeline =
-    timelines.find((timeline) => timeline.date === selectedDate) ?? timelines[0]!;
+    timelines.find((timeline) => timeline.date === selectedDate) ?? firstTimeline;
   const selectedPeriods = periods['1h'].filter(
     (period) => period.date === selectedTimeline.date
   );
@@ -228,9 +234,10 @@ export async function getForecastContext(
 
   return {
     schemaVersion: 1,
+    coverage,
     spot: toForecastSpotIdentity(spot),
     timeZone: 'Africa/Casablanca',
-    range: { startDate, endDate: dates[6]! },
+    range: { startDate, endDate },
     selectedDate: selectedTimeline.date,
     generatedAt: now.toISOString(),
     sourceTimestamps: { forecastFetchedAt, marineFetchedAt },
@@ -241,6 +248,32 @@ export async function getForecastContext(
     interpretations,
     orientationVerified: false,
   };
+}
+
+export async function getForecastContext(
+  spot: Spot,
+  selectedDate: string,
+  now: Date = new Date()
+): Promise<ForecastContextResponse & { coverage: 'week' }> {
+  const startDate = todayProductDate(now);
+  const dates = Array.from({ length: 7 }, (_, index) =>
+    addProductDays(startDate, index)
+  );
+  const [timelines, linkedSpecies, catalog] = await Promise.all([
+    getTimelinesForSpot(spotInput(spot), dates),
+    getSpotSpecies(spot.id).catch(() => []),
+    getSpeciesCatalog().catch(() => []),
+  ]);
+  return projectForecastContext(
+    spot,
+    timelines,
+    dates,
+    selectedDate,
+    linkedSpecies,
+    catalog,
+    'week',
+    now
+  );
 }
 
 /**
@@ -279,6 +312,104 @@ export async function getCachedForecastContext(
   }
 
   const request = getForecastContext(spot, startDate, now);
+  forecastContextInFlight.set(key, request);
+  try {
+    const data = await request;
+    forecastContextCache.set(key, {
+      data,
+      expiresAt: now.getTime() + FORECAST_CONTEXT_CACHE_TTL_MS,
+    });
+    retainBoundedForecastContextCache();
+    return {
+      data: selectContextDate(data, selectedDate),
+      cacheStatus: 'miss',
+    };
+  } finally {
+    if (forecastContextInFlight.get(key) === request) {
+      forecastContextInFlight.delete(key);
+    }
+  }
+}
+
+/**
+ * Builds a browser forecast in two deterministic phases. A complete in-memory
+ * context remains the fastest path and emits only the week result. On a miss,
+ * today's fully enriched projection is exposed through `onToday` before the
+ * same operation evaluates and caches the remaining six days.
+ */
+export async function getProgressiveForecastContext(
+  spot: Spot,
+  selectedDate: string,
+  onToday: (
+    data: ForecastContextResponse & { coverage: 'today' }
+  ) => void | Promise<void>,
+  now: Date = new Date()
+): Promise<{
+  data: ForecastContextResponse & { coverage: 'week' };
+  cacheStatus: ForecastContextCacheStatus;
+}> {
+  const startDate = todayProductDate(now);
+  const dates = Array.from({ length: 7 }, (_, index) =>
+    addProductDays(startDate, index)
+  );
+  const key = forecastContextCacheKey(spot.id, startDate);
+  const cached = forecastContextCache.get(key);
+  if (cached && cached.expiresAt > now.getTime()) {
+    forecastContextCache.delete(key);
+    forecastContextCache.set(key, cached);
+    return {
+      data: selectContextDate(cached.data, selectedDate),
+      cacheStatus: 'hit',
+    };
+  }
+  if (cached) forecastContextCache.delete(key);
+
+  const existing = forecastContextInFlight.get(key);
+  if (existing) {
+    return {
+      data: selectContextDate(await existing, selectedDate),
+      cacheStatus: 'coalesced',
+    };
+  }
+
+  // Species queries start with cache/provider work so today's period retains
+  // the exact enrichment behavior of the previous all-at-once response.
+  const enrichmentPromise = Promise.all([
+    getSpotSpecies(spot.id).catch(() => []),
+    getSpeciesCatalog().catch(() => []),
+  ]);
+  const request = (async () => {
+    const timelines = await getTimelinesForSpotProgressively(
+      spotInput(spot),
+      dates,
+      async (todayTimeline) => {
+        const [linkedSpecies, catalog] = await enrichmentPromise;
+        const todayContext = projectForecastContext(
+          spot,
+          [todayTimeline],
+          dates,
+          startDate,
+          linkedSpecies,
+          catalog,
+          'today',
+          now
+        );
+        await onToday(todayContext);
+      },
+      now
+    );
+    const [linkedSpecies, catalog] = await enrichmentPromise;
+    return projectForecastContext(
+      spot,
+      timelines,
+      dates,
+      selectedDate,
+      linkedSpecies,
+      catalog,
+      'week',
+      now
+    );
+  })();
   forecastContextInFlight.set(key, request);
   try {
     const data = await request;

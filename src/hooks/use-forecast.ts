@@ -1,9 +1,16 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  startTransition,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
 import {
   forecastRequestIdentity,
   readBrowserForecast,
+  shouldRequestForecast,
   subscribeForecastRequest,
   type ForecastCacheFreshness,
 } from '@/lib/forecast-ui/browser-cache';
@@ -19,6 +26,7 @@ export type ForecastState =
       cacheFreshness: ForecastCacheFreshness | 'network';
       refreshing: boolean;
       refreshError: string | null;
+      weekStatus: 'loading' | 'ready' | 'error';
     };
 
 function initialForecastState(spot: string, date: string): ForecastState {
@@ -30,8 +38,11 @@ function initialForecastState(spot: string, date: string): ForecastState {
         requestKey,
         data: cached.data,
         cacheFreshness: cached.freshness,
-        refreshing: cached.freshness === 'stale',
+        refreshing:
+          cached.data.coverage === 'week' && cached.freshness === 'stale',
         refreshError: null,
+        weekStatus:
+          cached.data.coverage === 'week' ? 'ready' : 'loading',
       }
     : { status: 'loading', requestKey };
 }
@@ -57,8 +68,7 @@ export function useForecast(spot: string, date: string) {
     setIsSlow(false);
     const cached = readBrowserForecast(spot, date);
     const forced = retry.key === requestKey && retry.token > 0;
-    const shouldRequest =
-      forced || !cached || cached.freshness === 'stale';
+    const shouldRequest = shouldRequestForecast(cached, forced);
 
     if (cached) {
       setState({
@@ -66,8 +76,11 @@ export function useForecast(spot: string, date: string) {
         requestKey,
         data: cached.data,
         cacheFreshness: cached.freshness,
-        refreshing: shouldRequest,
+        refreshing:
+          cached.data.coverage === 'week' && shouldRequest,
         refreshError: null,
+        weekStatus:
+          cached.data.coverage === 'week' ? 'ready' : 'loading',
       });
     } else {
       setState({ status: 'loading', requestKey });
@@ -75,13 +88,11 @@ export function useForecast(spot: string, date: string) {
     if (!shouldRequest) return;
 
     const slowTimer = window.setTimeout(() => setIsSlow(true), 1_200);
-    const request = subscribeForecastRequest(spot, date);
-    void request.promise
-      .then((data) => {
-        if (!active) return;
-        setRetry((current) =>
-          current.key === requestKey ? { key: '', token: current.token } : current
-        );
+    const applyData = (data: ForecastContextResponse) => {
+      if (!active) return;
+      window.clearTimeout(slowTimer);
+      setIsSlow(false);
+      const update = () =>
         setState({
           status: 'ready',
           requestKey,
@@ -89,7 +100,20 @@ export function useForecast(spot: string, date: string) {
           cacheFreshness: 'network',
           refreshing: false,
           refreshError: null,
+          weekStatus: data.coverage === 'week' ? 'ready' : 'loading',
         });
+      // Today becomes visible immediately. The substantially larger weekly
+      // projection can render at transition priority without hiding today.
+      if (data.coverage === 'week') startTransition(update);
+      else update();
+    };
+    const request = subscribeForecastRequest(spot, date, applyData);
+    void request.promise
+      .then(() => {
+        if (!active) return;
+        setRetry((current) =>
+          current.key === requestKey ? { key: '', token: current.token } : current
+        );
       })
       .catch((error: unknown) => {
         if (!active || (error instanceof DOMException && error.name === 'AbortError')) {
@@ -99,18 +123,30 @@ export function useForecast(spot: string, date: string) {
           error instanceof Error
             ? error.message
             : 'Forecast could not be refreshed. Please try again.';
-        if (cached) {
-          setState({
-            status: 'ready',
-            requestKey,
-            data: cached.data,
-            cacheFreshness: cached.freshness,
-            refreshing: false,
-            refreshError: message,
-          });
-        } else {
-          setState({ status: 'error', requestKey, message });
-        }
+        setState((current) => {
+          if (current.requestKey === requestKey && current.status === 'ready') {
+            return {
+              ...current,
+              refreshing: false,
+              refreshError: message,
+              weekStatus:
+                current.data.coverage === 'week' ? 'ready' : 'error',
+            };
+          }
+          if (cached) {
+            return {
+              status: 'ready',
+              requestKey,
+              data: cached.data,
+              cacheFreshness: cached.freshness,
+              refreshing: false,
+              refreshError: message,
+              weekStatus:
+                cached.data.coverage === 'week' ? 'ready' : 'error',
+            };
+          }
+          return { status: 'error', requestKey, message };
+        });
       })
       .finally(() => {
         window.clearTimeout(slowTimer);

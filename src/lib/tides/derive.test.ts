@@ -7,6 +7,7 @@ import {
   modelledTideRateAt,
   modelledTideTrendAt,
   openMeteoTimeToIso,
+  prepareModelledTideDeriver,
   toModelledSeaLevelPoints,
 } from '@/lib/tides/derive';
 import type { ModelledSeaLevelPoint } from '@/types/marine';
@@ -18,6 +19,48 @@ function hourly(heights: number[]): ModelledSeaLevelPoint[] {
     time: new Date(START_MS + index * 60 * 60 * 1000).toISOString(),
     heightM,
   }));
+}
+
+function oneOffReference(
+  points: ModelledSeaLevelPoint[],
+  now: Date
+) {
+  if (points.length === 0) return null;
+  const nowMs = now.getTime();
+  const allExtremes = detectModelledTideExtremes(points);
+  const upcomingExtremes = allExtremes.filter(
+    (extreme) => new Date(extreme.time).getTime() >= nowMs
+  );
+  const previous =
+    [...allExtremes]
+      .reverse()
+      .find((extreme) => new Date(extreme.time).getTime() < nowMs) ?? null;
+  const next = upcomingExtremes[0] ?? null;
+  return {
+    observedAt: now.toISOString(),
+    source: 'open-meteo-modelled',
+    datum: 'mean-sea-level',
+    sourceIntervalMinutes: 60,
+    heightM: modelledTideHeightAt(points, nowMs),
+    trend: modelledTideTrendAt(points, nowMs),
+    extremes: upcomingExtremes,
+    minutesToNextExtreme: next
+      ? Math.max(
+          0,
+          Math.ceil((new Date(next.time).getTime() - nowMs) / 60_000)
+        )
+      : null,
+    dailyRangeM: modelledDailyTidalRange(points, now),
+    rateMPerHour: modelledTideRateAt(points, nowMs),
+    minutesSincePreviousExtreme: previous
+      ? Math.max(
+          0,
+          Math.floor(
+            (nowMs - new Date(previous.time).getTime()) / 60_000
+          )
+        )
+      : null,
+  };
 }
 
 describe('modelled tide trend', () => {
@@ -153,5 +196,50 @@ describe('modelled tide source handling and interpolation', () => {
     expect(result?.extremes).toEqual([]);
     expect(result?.minutesToNextExtreme).toBeNull();
     expect(result?.dailyRangeM).toBeNull();
+  });
+});
+
+describe('prepared modelled tide derivation', () => {
+  it('matches the previous one-off semantics at representative timestamps', () => {
+    const points = hourly([
+      0, 0.5, 1, 1.5, 2, 1.5, 1, 0.5, 0, -0.5, -1, -0.5, 0,
+      0.5, 1, 1.5, 2, 1.5, 1, 0.5, 0, -0.5, -1, -0.5, 0, 0.5,
+    ]);
+    const prepared = prepareModelledTideDeriver(points);
+    const timestamps = [
+      START_MS,
+      START_MS + 30 * 60_000,
+      START_MS + 4 * 60 * 60_000,
+      START_MS + 11.5 * 60 * 60_000,
+      START_MS + 23.5 * 60 * 60_000,
+      START_MS + 25 * 60 * 60_000,
+    ];
+
+    for (const timestamp of timestamps) {
+      const now = new Date(timestamp);
+      expect(prepared.derive(now)).toEqual(oneOffReference(points, now));
+    }
+  });
+
+  it('preserves missing and incomplete source behavior', () => {
+    expect(
+      prepareModelledTideDeriver([]).derive(new Date(START_MS))
+    ).toBeNull();
+    const single = hourly([1.25]);
+    expect(
+      prepareModelledTideDeriver(single).derive(new Date(START_MS))
+    ).toEqual(oneOffReference(single, new Date(START_MS)));
+  });
+
+  it('returns independent extreme objects across repeated derivations', () => {
+    const points = hourly([0, 1, 2, 1, 0, -1, 0]);
+    const prepared = prepareModelledTideDeriver(points);
+    const first = prepared.derive(new Date(START_MS));
+    if (!first?.extremes[0]) throw new Error('fixture');
+    first.extremes[0].heightM = 999;
+
+    expect(prepared.derive(new Date(START_MS))).toEqual(
+      oneOffReference(points, new Date(START_MS))
+    );
   });
 });

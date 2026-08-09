@@ -236,6 +236,38 @@ describe('buildTimeline', () => {
     expect(halfHour.tideHeightM!).toBeLessThan(1.5);
   });
 
+  it('preserves one-off tide derivation semantics across the timeline', () => {
+    const anchors = flatAnchors();
+    const timeline = buildTimeline(
+      SPOT,
+      DATE,
+      RANGE.startMs,
+      RANGE.endMs,
+      anchors,
+      NOW
+    );
+
+    for (const index of [0, 6, 72, 144, 216, 287]) {
+      const point = timeline.points[index]!;
+      const expected = deriveModelledTideConditions(
+        anchors.tide.points,
+        new Date(point.time)
+      );
+      expect(point.tideTrend).toBe(expected?.trend ?? null);
+      expect(point.tideRateMPerHour).toBe(expected?.rateMPerHour ?? null);
+      expect(point.tideDailyRangeM).toBe(expected?.dailyRangeM ?? null);
+      expect(point.tideMinutesToNextExtreme).toBe(
+        expected?.minutesToNextExtreme ?? null
+      );
+      expect(point.tideNextExtremeState).toBe(
+        expected?.extremes[0]?.state ?? null
+      );
+      expect(point.tideNextExtremeTime).toBe(
+        expected?.extremes[0]?.time ?? null
+      );
+    }
+  });
+
   it('returns Unknown safety and no window when primary inputs are missing', () => {
     const timeline = buildTimeline(
       SPOT,

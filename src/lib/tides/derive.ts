@@ -15,6 +15,12 @@ export const TIDE_SOURCE_INTERVAL_MINUTES = 60 as const;
 
 const TREND_WINDOW_MS = 30 * 60 * 1000;
 const SLACK_DELTA_M = 0.02;
+const localDateFormatters = new Map<string, Intl.DateTimeFormat>();
+
+export interface PreparedModelledTideDeriver {
+  /** Derives conditions without rebuilding immutable source-series metadata. */
+  derive(now?: Date): TideConditions | null;
+}
 
 /**
  * Converts Open-Meteo's timezone-local ISO timestamps to absolute ISO values
@@ -163,14 +169,41 @@ export function detectModelledTideExtremes(
 }
 
 function localDateKey(date: Date, timeZone: string): string {
-  const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).formatToParts(date);
+  let formatter = localDateFormatters.get(timeZone);
+  if (!formatter) {
+    formatter = new Intl.DateTimeFormat('en-CA', {
+      timeZone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    });
+    localDateFormatters.set(timeZone, formatter);
+  }
+  const parts = formatter.formatToParts(date);
   const values = new Map(parts.map((part) => [part.type, part.value]));
   return `${values.get('year')}-${values.get('month')}-${values.get('day')}`;
+}
+
+function dailyTidalRanges(
+  points: ModelledSeaLevelPoint[],
+  timeZone: string
+): Map<string, number | null> {
+  const heightsByDate = new Map<string, number[]>();
+  for (const point of points) {
+    const key = localDateKey(new Date(point.time), timeZone);
+    const heights = heightsByDate.get(key);
+    if (heights) heights.push(point.heightM);
+    else heightsByDate.set(key, [point.heightM]);
+  }
+
+  return new Map(
+    [...heightsByDate.entries()].map(([key, heights]) => [
+      key,
+      heights.length < 2
+        ? null
+        : Math.max(...heights) - Math.min(...heights),
+    ])
+  );
 }
 
 /** Daily max-minus-min range from native provider points in the local day. */
@@ -188,6 +221,92 @@ export function modelledDailyTidalRange(
 }
 
 /**
+ * Prepares the immutable parts of modelled-tide derivation once for a provider
+ * series. Timeline generation evaluates the same source points hundreds of
+ * times, so rebuilding samples, extrema and local-day ranges per point adds
+ * substantial work without changing the result.
+ */
+export function prepareModelledTideDeriver(
+  points: ModelledSeaLevelPoint[],
+  timeZone = TIDE_TIME_ZONE
+): PreparedModelledTideDeriver {
+  if (points.length === 0) {
+    return { derive: () => null };
+  }
+
+  const samples = samplesFrom(points);
+  const extremes = detectModelledTideExtremes(points).map((extreme) => ({
+    extreme,
+    epochMs: new Date(extreme.time).getTime(),
+  }));
+  const ranges = dailyTidalRanges(points, timeZone);
+
+  return {
+    derive(now: Date = new Date()): TideConditions {
+      // Preserve the one-off function's invalid-Date failure behavior before
+      // doing any additional formatting work.
+      const observedAt = now.toISOString();
+      const nowMs = now.getTime();
+      const upcomingExtremes = extremes
+        .filter((item) => item.epochMs >= nowMs)
+        .map((item) => ({ ...item.extreme }));
+      let previousExtremeMs: number | null = null;
+      for (let index = extremes.length - 1; index >= 0; index--) {
+        const candidate = extremes[index]!;
+        if (candidate.epochMs < nowMs) {
+          previousExtremeMs = candidate.epochMs;
+          break;
+        }
+      }
+      const next = upcomingExtremes[0] ?? null;
+
+      let rateMPerHour: number | null = null;
+      if (points.length >= 2) {
+        const before = monotoneCubicAt(samples, nowMs - TREND_WINDOW_MS);
+        const after = monotoneCubicAt(samples, nowMs + TREND_WINDOW_MS);
+        if (before !== null && after !== null) {
+          rateMPerHour = after - before;
+        }
+      }
+      const trend: TideTrend | null =
+        rateMPerHour === null
+          ? null
+          : Math.abs(rateMPerHour) <= SLACK_DELTA_M
+            ? 'slack'
+            : rateMPerHour > 0
+              ? 'rising'
+              : 'falling';
+      const dayKey = localDateKey(now, timeZone);
+
+      return {
+        observedAt,
+        source: 'open-meteo-modelled',
+        datum: 'mean-sea-level',
+        sourceIntervalMinutes: TIDE_SOURCE_INTERVAL_MINUTES,
+        heightM: monotoneCubicAt(samples, nowMs),
+        trend,
+        extremes: upcomingExtremes,
+        minutesToNextExtreme: next
+          ? Math.max(
+              0,
+              Math.ceil((new Date(next.time).getTime() - nowMs) / 60_000)
+            )
+          : null,
+        dailyRangeM: ranges.get(dayKey) ?? null,
+        rateMPerHour,
+        minutesSincePreviousExtreme:
+          previousExtremeMs === null
+            ? null
+            : Math.max(
+                0,
+                Math.floor((nowMs - previousExtremeMs) / 60_000)
+              ),
+      };
+    },
+  };
+}
+
+/**
  * Derives the current compatible TideConditions domain object entirely from
  * hourly modelled sea-level source points.
  */
@@ -195,42 +314,5 @@ export function deriveModelledTideConditions(
   points: ModelledSeaLevelPoint[],
   now: Date = new Date()
 ): TideConditions | null {
-  if (points.length === 0) return null;
-
-  const nowMs = now.getTime();
-  const allExtremes = detectModelledTideExtremes(points);
-  const upcomingExtremes = allExtremes.filter(
-    (extreme) => new Date(extreme.time).getTime() >= nowMs
-  );
-  const previous =
-    [...allExtremes]
-      .reverse()
-      .find((extreme) => new Date(extreme.time).getTime() < nowMs) ?? null;
-  const next = upcomingExtremes[0] ?? null;
-
-  return {
-    observedAt: now.toISOString(),
-    source: 'open-meteo-modelled',
-    datum: 'mean-sea-level',
-    sourceIntervalMinutes: TIDE_SOURCE_INTERVAL_MINUTES,
-    heightM: modelledTideHeightAt(points, nowMs),
-    trend: modelledTideTrendAt(points, nowMs),
-    extremes: upcomingExtremes,
-    minutesToNextExtreme: next
-      ? Math.max(
-          0,
-          Math.ceil((new Date(next.time).getTime() - nowMs) / 60_000)
-        )
-      : null,
-    dailyRangeM: modelledDailyTidalRange(points, now),
-    rateMPerHour: modelledTideRateAt(points, nowMs),
-    minutesSincePreviousExtreme: previous
-      ? Math.max(
-          0,
-          Math.floor(
-            (nowMs - new Date(previous.time).getTime()) / 60_000
-          )
-        )
-      : null,
-  };
+  return prepareModelledTideDeriver(points).derive(now);
 }

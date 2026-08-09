@@ -1,6 +1,7 @@
 import type {
   ForecastComparisonResponse,
   ForecastContextResponse,
+  ForecastStreamEvent,
 } from '@/lib/forecast-ui/types';
 
 function record(value: unknown): Record<string, unknown> | null {
@@ -18,6 +19,7 @@ export function isForecastContextResponse(
   const periods = record(body?.periods);
   return Boolean(
     body?.schemaVersion === 1 &&
+      (body.coverage === 'today' || body.coverage === 'week') &&
       body.timeZone === 'Africa/Casablanca' &&
       typeof spot?.id === 'string' &&
       typeof spot.slug === 'string' &&
@@ -28,6 +30,31 @@ export function isForecastContextResponse(
       Array.isArray(periods['1h']) &&
       Array.isArray(periods['3h']) &&
       Array.isArray(periods['6h'])
+  );
+}
+
+export function isForecastStreamEvent(
+  value: unknown
+): value is ForecastStreamEvent {
+  const body = record(value);
+  if (body?.type === 'error') {
+    return (
+      (body.stage === 'today' || body.stage === 'week') &&
+      body.code === 'forecast_unavailable'
+    );
+  }
+  if (body?.type !== 'today' && body?.type !== 'week') return false;
+  if (typeof body.elapsedMs !== 'number' || !Number.isFinite(body.elapsedMs)) {
+    return false;
+  }
+  const data = body.data;
+  if (!isForecastContextResponse(data)) return false;
+  if (body.type === 'today') return data.coverage === 'today';
+  return (
+    data.coverage === 'week' &&
+    (body.cacheStatus === 'hit' ||
+      body.cacheStatus === 'miss' ||
+      body.cacheStatus === 'coalesced')
   );
 }
 
@@ -43,4 +70,3 @@ export function isForecastComparisonResponse(
       Array.isArray(body.failures)
   );
 }
-
