@@ -3,6 +3,7 @@
 import { useEffect, useRef } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import type { MotionValue } from 'framer-motion';
+import * as THREE from 'three';
 import {
   HOME_3D_QUALITY_SETTINGS,
   type Home3DQuality,
@@ -82,14 +83,19 @@ export function Homepage3DCanvas({
       camera={{ position: [0, 3.4, 13], fov: 48, near: 0.1, far: 130 }}
       dpr={dpr}
       frameloop={active ? 'always' : 'never'}
-      flat
       shadows={settings.shadows}
       gl={{
-        alpha: false,
+        alpha: true,
         antialias: settings.antialias,
         depth: true,
         powerPreference: quality === 'low' ? 'low-power' : 'high-performance',
         preserveDrawingBuffer: false,
+      }}
+      onCreated={({ gl }) => {
+        gl.setClearColor(0x000000, 0);
+        gl.toneMapping = THREE.ACESFilmicToneMapping;
+        gl.toneMappingExposure = 0.95;
+        gl.outputColorSpace = THREE.SRGBColorSpace;
       }}
       resize={{ debounce: { scroll: 50, resize: 100 } }}
       style={{ pointerEvents: 'none' }}

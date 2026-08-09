@@ -3,8 +3,10 @@ import {
   HOME_3D_CAMERA_KEYFRAMES,
   HOME_3D_QUALITY_SETTINGS,
   HOME_3D_TEXT_WINDOWS,
+  HOME_3D_VISUAL_WINDOWS,
   clampHome3DProgress,
   homeSceneOpacity,
+  homeVisualPresence,
   resolveHome3DMode,
   sampleHomeCamera,
   selectHome3DQuality,
@@ -166,6 +168,52 @@ describe('homepage camera journey', () => {
     const backward = sampleHomeCamera(0.61, 'landscape');
     expect(backward).toEqual(forward);
   });
+
+  it('keeps camera velocity continuous through interior keyframes', () => {
+    const epsilon = 0.00001;
+
+    for (const composition of ['landscape', 'portrait'] as const) {
+      const keyframes = HOME_3D_CAMERA_KEYFRAMES[composition];
+      for (let index = 1; index < keyframes.length - 1; index += 1) {
+        const keyframe = keyframes[index]!;
+        const before = sampleHomeCamera(keyframe.progress - epsilon, composition);
+        const at = sampleHomeCamera(keyframe.progress, composition);
+        const after = sampleHomeCamera(keyframe.progress + epsilon, composition);
+        const beforeValues = [...before.position, ...before.target, before.fov];
+        const atValues = [...at.position, ...at.target, at.fov];
+        const afterValues = [...after.position, ...after.target, after.fov];
+
+        for (let valueIndex = 0; valueIndex < atValues.length; valueIndex += 1) {
+          const incoming = (atValues[valueIndex]! - beforeValues[valueIndex]!) / epsilon;
+          const outgoing = (afterValues[valueIndex]! - atValues[valueIndex]!) / epsilon;
+          expect(outgoing).toBeCloseTo(incoming, 2);
+        }
+      }
+    }
+  });
+
+  it('does not stop the forward camera travel at each interior keyframe', () => {
+    const epsilon = 0.00001;
+
+    for (const composition of ['landscape', 'portrait'] as const) {
+      for (const keyframe of HOME_3D_CAMERA_KEYFRAMES[composition].slice(1, -1)) {
+        const before = sampleHomeCamera(keyframe.progress - epsilon, composition);
+        const after = sampleHomeCamera(keyframe.progress + epsilon, composition);
+        const zVelocity = (after.position[2] - before.position[2]) / (epsilon * 2);
+        expect(Math.abs(zVelocity)).toBeGreaterThan(20);
+      }
+    }
+  });
+
+  it('returns only finite camera values throughout both paths', () => {
+    for (const composition of ['landscape', 'portrait'] as const) {
+      for (let step = 0; step <= 1000; step += 1) {
+        const pose = sampleHomeCamera(step / 1000, composition);
+        expect([...pose.position, ...pose.target, pose.fov].every(Number.isFinite)).toBe(true);
+        expect(pose.fov).toBeGreaterThan(0);
+      }
+    }
+  });
 });
 
 describe('homepage scene-copy windows', () => {
@@ -205,6 +253,55 @@ describe('homepage scene-copy windows', () => {
     expect(homeSceneOpacity('ocean', Number.NaN)).toBe(1);
     expect(homeSceneOpacity('ocean', -1)).toBe(1);
     expect(homeSceneOpacity('decision', 2)).toBe(1);
+  });
+});
+
+describe('homepage world-layer presence', () => {
+  it('uses stable, locale-independent spatial layer identifiers', () => {
+    expect(Object.keys(HOME_3D_VISUAL_WINDOWS)).toEqual([
+      'ocean',
+      'coast',
+      'marine',
+      'decision',
+    ]);
+  });
+
+  it('preserves an overlapping visual handoff throughout the journey', () => {
+    for (let step = 0; step <= 1000; step += 1) {
+      const progress = step / 1000;
+      const opacities = Object.keys(HOME_3D_VISUAL_WINDOWS).map((layer) =>
+        homeVisualPresence(layer as keyof typeof HOME_3D_VISUAL_WINDOWS, progress)
+      );
+      expect(Math.max(...opacities)).toBeGreaterThan(0);
+    }
+  });
+
+  it('returns only finite opacity values in the inclusive unit interval', () => {
+    const samples = [Number.NaN, Number.NEGATIVE_INFINITY, -1, 0, 0.5, 1, 2];
+    for (let step = 0; step <= 1000; step += 1) samples.push(step / 1000);
+
+    for (const layer of Object.keys(HOME_3D_VISUAL_WINDOWS)) {
+      for (const progress of samples) {
+        const opacity = homeVisualPresence(
+          layer as keyof typeof HOME_3D_VISUAL_WINDOWS,
+          progress
+        );
+        expect(Number.isFinite(opacity)).toBe(true);
+        expect(opacity).toBeGreaterThanOrEqual(0);
+        expect(opacity).toBeLessThanOrEqual(1);
+      }
+    }
+  });
+
+  it('keeps exact journey boundary states', () => {
+    expect(homeVisualPresence('ocean', -1)).toBe(1);
+    expect(homeVisualPresence('coast', 0)).toBe(0);
+    expect(homeVisualPresence('marine', 0)).toBe(0);
+    expect(homeVisualPresence('decision', 0)).toBe(0);
+    expect(homeVisualPresence('ocean', 1)).toBe(0);
+    expect(homeVisualPresence('coast', 1)).toBe(0);
+    expect(homeVisualPresence('marine', 1)).toBe(0);
+    expect(homeVisualPresence('decision', 2)).toBe(1);
   });
 });
 

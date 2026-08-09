@@ -6,6 +6,7 @@ import type { MotionValue } from 'framer-motion';
 import * as THREE from 'three';
 import {
   HOME_3D_QUALITY_SETTINGS,
+  homeVisualPresence,
   sampleHomeCamera,
   type Home3DQuality,
 } from '@/lib/homepage/journey';
@@ -62,33 +63,94 @@ const MARINE_SIGNAL_ORIGINS = {
 
 const OCEAN_VERTEX_SHADER = `
   uniform float uTime;
-  varying float vWave;
+  varying vec3 vWorldPosition;
+  varying vec3 vWorldNormal;
+  varying float vCrest;
   varying float vDistance;
+
+  float directionalWave(
+    vec2 point,
+    vec2 direction,
+    float frequency,
+    float amplitude,
+    float speed,
+    float time
+  ) {
+    return sin(dot(point, normalize(direction)) * frequency + time * speed) * amplitude;
+  }
+
+  float oceanHeight(vec2 point, float time) {
+    return
+      directionalWave(point, vec2(1.0, 0.18), 0.48, 0.12, 0.45, time) +
+      directionalWave(point, vec2(-0.36, 1.0), 0.25, 0.16, -0.31, time) +
+      directionalWave(point, vec2(0.72, 1.0), 0.78, 0.045, 0.62, time) +
+      directionalWave(point, vec2(-1.0, 0.54), 1.24, 0.018, -0.83, time);
+  }
 
   void main() {
     vec3 transformed = position;
-    float waveA = sin((position.x * 0.52) + (uTime * 0.42)) * 0.13;
-    float waveB = sin((position.y * 0.23) - (uTime * 0.3)) * 0.17;
-    float waveC = sin(((position.x + position.y) * 0.31) + (uTime * 0.2)) * 0.07;
-    transformed.z += waveA + waveB + waveC;
-    vWave = transformed.z;
+    float height = oceanHeight(position.xy, uTime);
+    float sampleDistance = 0.12;
+    float heightX = oceanHeight(position.xy + vec2(sampleDistance, 0.0), uTime);
+    float heightY = oceanHeight(position.xy + vec2(0.0, sampleDistance), uTime);
+    vec3 localNormal = normalize(vec3(
+      -(heightX - height) / sampleDistance,
+      -(heightY - height) / sampleDistance,
+      1.0
+    ));
+
+    transformed.z += height;
+    vec4 worldPosition = modelMatrix * vec4(transformed, 1.0);
+    vWorldPosition = worldPosition.xyz;
+    vWorldNormal = normalize(mat3(modelMatrix) * localNormal);
+    vCrest = height;
     vDistance = clamp((-position.y + 48.0) / 96.0, 0.0, 1.0);
     gl_Position = projectionMatrix * modelViewMatrix * vec4(transformed, 1.0);
   }
 `;
 
 const OCEAN_FRAGMENT_SHADER = `
-  varying float vWave;
+  uniform vec3 uSunDirection;
+  uniform float uPresence;
+  varying vec3 vWorldPosition;
+  varying vec3 vWorldNormal;
+  varying float vCrest;
   varying float vDistance;
 
   void main() {
-    vec3 deep = vec3(0.008, 0.055, 0.082);
-    vec3 atlantic = vec3(0.018, 0.20, 0.24);
-    vec3 crest = vec3(0.20, 0.58, 0.57);
-    float crestMix = smoothstep(0.12, 0.31, vWave) * 0.34;
-    vec3 color = mix(deep, atlantic, 0.34 + (vDistance * 0.38));
-    color = mix(color, crest, crestMix);
-    gl_FragColor = vec4(color, 1.0);
+    vec3 normal = normalize(vWorldNormal);
+    vec3 viewDirection = normalize(cameraPosition - vWorldPosition);
+    vec3 sunDirection = normalize(uSunDirection);
+
+    float facing = clamp(dot(normal, viewDirection), 0.0, 1.0);
+    float fresnel = 0.035 + 0.965 * pow(1.0 - facing, 5.0);
+    float diffuse = max(dot(normal, sunDirection), 0.0);
+    float sunGlint = pow(
+      max(dot(reflect(-sunDirection, normal), viewDirection), 0.0),
+      92.0
+    );
+    float broadGlint = pow(
+      max(dot(reflect(-sunDirection, normal), viewDirection), 0.0),
+      18.0
+    );
+    float foam = smoothstep(0.205, 0.305, vCrest);
+
+    vec3 deepWater = vec3(0.006, 0.075, 0.095);
+    vec3 atlantic = vec3(0.018, 0.205, 0.225);
+    vec3 reflectedSky = vec3(0.18, 0.37, 0.40);
+    vec3 warmSun = vec3(1.0, 0.56, 0.27);
+    vec3 seaFoam = vec3(0.68, 0.83, 0.79);
+
+    vec3 color = mix(deepWater, atlantic, 0.32 + vDistance * 0.28 + diffuse * 0.12);
+    color = mix(color, reflectedSky, fresnel * 0.55);
+    color += warmSun * (sunGlint * 0.8 + broadGlint * 0.08);
+    color = mix(color, seaFoam, foam * 0.52);
+
+    // The photograph supplies fine coastal detail. The WebGL surface remains
+    // translucent, contributing real depth, light and moving water highlights.
+    float horizonFade = smoothstep(0.02, 0.22, vDistance);
+    float alpha = uPresence * horizonFade * (0.28 + fresnel * 0.2 + foam * 0.24 + sunGlint * 0.2);
+    gl_FragColor = vec4(color, clamp(alpha, 0.0, 0.78));
   }
 `;
 
@@ -136,14 +198,23 @@ function CameraRig({
   return null;
 }
 
-function Ocean({ quality }: Pick<Homepage3DSceneProps, 'quality'>) {
+function Ocean({ quality, progress }: Pick<Homepage3DSceneProps, 'quality' | 'progress'>) {
   const materialRef = useRef<THREE.ShaderMaterial>(null);
   const settings = HOME_3D_QUALITY_SETTINGS[quality];
-  const uniforms = useMemo(() => ({ uTime: { value: 0 } }), []);
+  const uniforms = useMemo(() => ({
+    uTime: { value: 0 },
+    uSunDirection: { value: new THREE.Vector3(-0.7, 0.34, 0.62).normalize() },
+    uPresence: { value: 1 },
+  }), []);
 
   useFrame(({ clock }) => {
     if (materialRef.current) {
-      materialRef.current.uniforms.uTime!.value = clock.elapsedTime;
+      const presence = homeVisualPresence('ocean', progress.get());
+      materialRef.current.uniforms.uPresence!.value = presence;
+      materialRef.current.visible = presence > 0.003;
+      if (presence > 0.003) {
+        materialRef.current.uniforms.uTime!.value = clock.elapsedTime;
+      }
     }
   });
 
@@ -163,14 +234,7 @@ function Ocean({ quality }: Pick<Homepage3DSceneProps, 'quality'>) {
           vertexShader={OCEAN_VERTEX_SHADER}
           fragmentShader={OCEAN_FRAGMENT_SHADER}
           uniforms={uniforms}
-        />
-      </mesh>
-      <mesh position={[0, 7.5, -54]} scale={[1.8, 0.55, 1]}>
-        <sphereGeometry args={[10, 24, 12]} />
-        <meshBasicMaterial
-          color="#67c9c0"
           transparent
-          opacity={0.075}
           depthWrite={false}
         />
       </mesh>
@@ -178,8 +242,9 @@ function Ocean({ quality }: Pick<Homepage3DSceneProps, 'quality'>) {
   );
 }
 
-function Atmosphere({ quality }: Pick<Homepage3DSceneProps, 'quality'>) {
+function Atmosphere({ quality, progress }: Pick<Homepage3DSceneProps, 'quality' | 'progress'>) {
   const pointsRef = useRef<THREE.Points>(null);
+  const materialRef = useRef<THREE.PointsMaterial>(null);
   const count = HOME_3D_QUALITY_SETTINGS[quality].particles;
   const positions = useMemo(() => {
     const values = new Float32Array(count * 3);
@@ -197,9 +262,14 @@ function Atmosphere({ quality }: Pick<Homepage3DSceneProps, 'quality'>) {
   }, [count]);
 
   useFrame(({ clock }) => {
+    const presence = homeVisualPresence('ocean', progress.get());
     if (pointsRef.current) {
-      pointsRef.current.rotation.y = Math.sin(clock.elapsedTime * 0.045) * 0.025;
+      pointsRef.current.visible = presence > 0.003;
+      if (presence > 0.003) {
+        pointsRef.current.rotation.y = Math.sin(clock.elapsedTime * 0.045) * 0.025;
+      }
     }
+    if (materialRef.current) materialRef.current.opacity = presence * 0.35;
   });
 
   return (
@@ -208,6 +278,7 @@ function Atmosphere({ quality }: Pick<Homepage3DSceneProps, 'quality'>) {
         <bufferAttribute attach="attributes-position" args={[positions, 3]} />
       </bufferGeometry>
       <pointsMaterial
+        ref={materialRef}
         color="#a6ded9"
         size={0.035}
         transparent
@@ -243,7 +314,7 @@ function TextSprite({
       context.lineWidth = 2;
       context.stroke();
       context.fillStyle = '#e0f2f1';
-      context.font = '600 38px system-ui, sans-serif';
+      context.font = '600 46px system-ui, sans-serif';
       context.textAlign = 'center';
       context.textBaseline = 'middle';
       context.direction = document.documentElement.dir === 'rtl' ? 'rtl' : 'ltr';
@@ -335,8 +406,17 @@ function SpotMarker({
   const pulseRef = useRef<THREE.Mesh>(null);
 
   useFrame(({ clock }) => {
-    const reveal = smoothRange(0.245 + index * 0.012, 0.34 + index * 0.012, progress.get());
-    groupRef.current?.scale.setScalar(reveal);
+    const storyProgress = progress.get();
+    const reveal = smoothRange(
+      0.245 + index * 0.012,
+      0.34 + index * 0.012,
+      storyProgress
+    ) * homeVisualPresence('coast', storyProgress);
+    if (groupRef.current) {
+      groupRef.current.visible = reveal > 0.003;
+      groupRef.current.scale.setScalar(reveal);
+    }
+    if (reveal <= 0.003) return;
     if (selected && pulseRef.current) {
       const cycle = (clock.elapsedTime * 0.42) % 1;
       pulseRef.current.scale.setScalar(0.75 + cycle * 1.65);
@@ -381,6 +461,9 @@ function FishingCoast({
   progress,
   quality,
 }: Pick<Homepage3DSceneProps, 'spots' | 'progress' | 'quality'>) {
+  const groupRef = useRef<THREE.Group>(null);
+  const terrainMaterialRef = useRef<THREE.MeshStandardMaterial>(null);
+  const shorelineMaterialRef = useRef<THREE.MeshBasicMaterial>(null);
   const size = useThree((state) => state.size);
   const showMarkerLabels = size.width / Math.max(size.height, 1) >= 0.88;
   const worldSpots = useMemo(() => projectSpots(spots), [spots]);
@@ -395,13 +478,15 @@ function FishingCoast({
     if (ordered.length === 1) {
       const only = ordered[0]!;
       return [
-        new THREE.Vector3(only.position[0] + 0.25, -1.28, only.position[2] + 2.4),
-        new THREE.Vector3(only.position[0] + 0.45, -1.28, only.position[2]),
-        new THREE.Vector3(only.position[0] + 0.7, -1.28, only.position[2] - 2.4),
+        new THREE.Vector3(only.position[0] - 0.65, -1.28, only.position[2] + 2.4),
+        new THREE.Vector3(only.position[0] - 0.45, -1.28, only.position[2]),
+        new THREE.Vector3(only.position[0] - 0.2, -1.28, only.position[2] - 2.4),
       ];
     }
     return ordered.map((spot) => new THREE.Vector3(
-      spot.position[0] + 0.45,
+      // The Atlantic is west/left in this language-neutral world. Keep the
+      // real spot marker just inland (east/right) of the shoreline.
+      spot.position[0] - 0.45,
       -1.28,
       spot.position[2]
     ));
@@ -414,6 +499,14 @@ function FishingCoast({
   const coastLinePoints = useMemo(
     () => coastCurve.getPoints(coastSegments),
     [coastCurve, coastSegments]
+  );
+  const shorelineCurve = useMemo(
+    () => new THREE.CatmullRomCurve3(
+      coastPoints.map((point) => new THREE.Vector3(point.x, -2.02, point.z)),
+      false,
+      'centripetal'
+    ),
+    [coastPoints]
   );
   const shape = useMemo(() => {
     const value = new THREE.Shape();
@@ -432,27 +525,73 @@ function FishingCoast({
   }, [coastPoints]);
   const bathymetry = useMemo(
     () => [1.1, 2.1, 3.2].map((offset) => coastLinePoints.map(
-      (point) => new THREE.Vector3(point.x - offset, point.y - 0.025, point.z)
+      (point) => new THREE.Vector3(point.x - offset, -2.04, point.z)
+    )),
+    [coastLinePoints]
+  );
+  const landContours = useMemo(
+    () => [0.75, 1.55].map((offset) => coastLinePoints.map(
+      (point, index) => new THREE.Vector3(
+        point.x + offset,
+        point.y + 0.16 + Math.sin(index * 0.72 + offset) * 0.035,
+        point.z
+      )
     )),
     [coastLinePoints]
   );
 
+  useFrame(() => {
+    const storyProgress = progress.get();
+    const reveal = homeVisualPresence('coast', storyProgress);
+    if (groupRef.current) {
+      groupRef.current.visible = reveal > 0.006;
+      groupRef.current.position.y = (1 - reveal) * -0.12;
+    }
+    if (terrainMaterialRef.current) terrainMaterialRef.current.opacity = reveal * 0.98;
+    if (shorelineMaterialRef.current) shorelineMaterialRef.current.opacity = reveal * 0.62;
+  });
+
   return (
-    <group>
-      <mesh position={[0, -1.3, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <shapeGeometry args={[shape, 2]} />
+    <group ref={groupRef} visible={false}>
+      <mesh position={[0, -1.9, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <extrudeGeometry
+          args={[shape, {
+            depth: quality === 'high' ? 0.62 : 0.5,
+            bevelEnabled: true,
+            bevelSegments: quality === 'high' ? 2 : 1,
+            bevelSize: quality === 'low' ? 0.06 : 0.1,
+            bevelThickness: quality === 'low' ? 0.06 : 0.1,
+            curveSegments: quality === 'high' ? 4 : 2,
+            steps: 1,
+          }]}
+        />
         <meshStandardMaterial
-          color="#123d3b"
-          roughness={0.92}
-          metalness={0.04}
+          ref={terrainMaterialRef}
+          color="#756047"
+          emissive="#21170e"
+          emissiveIntensity={0.28}
+          roughness={0.98}
+          metalness={0}
           transparent
-          opacity={0.96}
+          opacity={0}
           side={THREE.DoubleSide}
         />
       </mesh>
-      <ManagedLine points={coastLinePoints} color="#79d8ca" opacity={0.55} />
+      <mesh>
+        <tubeGeometry args={[shorelineCurve, coastSegments, quality === 'low' ? 0.025 : 0.04, 5, false]} />
+        <meshBasicMaterial
+          ref={shorelineMaterialRef}
+          color="#d2ded1"
+          transparent
+          opacity={0}
+          depthWrite={false}
+        />
+      </mesh>
       {bathymetry.map((points, index) => (
-        <ManagedLine key={index} points={points} color="#318f94" opacity={0.2 - index * 0.035} />
+        <ManagedLine key={index} points={points} color="#5f9ea0" opacity={0.16 - index * 0.03} />
+      ))}
+      {landContours.map((points, index) => (
+        <ManagedLine key={index} points={points} color="#9d8664" opacity={0.16 - index * 0.035} />
       ))}
       {worldSpots.map((spot, index) => (
         <SpotMarker
@@ -461,7 +600,7 @@ function FishingCoast({
           index={index}
           progress={progress}
           selected={spot.slug === 'tifnit'}
-          showLabel={showMarkerLabels}
+          showLabel={showMarkerLabels && spot.slug === 'tifnit'}
         />
       ))}
     </group>
@@ -503,9 +642,14 @@ function SignalFlow({
   const beadCount = quality === 'high' ? 3 : 2;
 
   useFrame(({ clock }) => {
-    const reveal = smoothRange(0.48, 0.59, progress.get());
-    groupRef.current?.scale.setScalar(reveal);
-    if (materialRef.current) materialRef.current.opacity = reveal * 0.32;
+    const storyProgress = progress.get();
+    const reveal = homeVisualPresence('marine', storyProgress);
+    if (groupRef.current) {
+      groupRef.current.visible = reveal > 0.003;
+      groupRef.current.scale.setScalar(reveal);
+    }
+    if (materialRef.current) materialRef.current.opacity = reveal * 0.22;
+    if (reveal <= 0.003) return;
     beadsRef.current.forEach((bead, index) => {
       if (!bead) return;
       const amount = (clock.elapsedTime * 0.1 + phase + index / beadCount) % 1;
@@ -545,6 +689,7 @@ function MarineIntelligence({
   quality,
 }: Pick<Homepage3DSceneProps, 'labels' | 'progress' | 'quality'>) {
   const coreRef = useRef<THREE.Group>(null);
+  const reticleRef = useRef<THREE.Group>(null);
   const tideGroupRef = useRef<THREE.Group>(null);
   const tideRef = useRef<THREE.Mesh>(null);
   const size = useThree((state) => state.size);
@@ -553,14 +698,22 @@ function MarineIntelligence({
     : 'landscape';
   const origins = MARINE_SIGNAL_ORIGINS[composition];
   const labelScale = composition === 'portrait'
-    ? [1.2, 0.34, 1] as const
+    ? [1.6, 0.48, 1] as const
     : [1.45, 0.38, 1] as const;
 
   useFrame(({ clock }) => {
-    const reveal = smoothRange(0.5, 0.62, progress.get());
-    coreRef.current?.scale.setScalar(reveal);
-    tideGroupRef.current?.scale.setScalar(reveal);
-    if (coreRef.current) coreRef.current.rotation.y = clock.elapsedTime * 0.12;
+    const storyProgress = progress.get();
+    const reveal = homeVisualPresence('marine', storyProgress);
+    if (coreRef.current) {
+      coreRef.current.visible = reveal > 0.003;
+      coreRef.current.scale.setScalar(reveal);
+    }
+    if (tideGroupRef.current) {
+      tideGroupRef.current.visible = reveal > 0.003;
+      tideGroupRef.current.scale.setScalar(reveal);
+    }
+    if (reveal <= 0.003) return;
+    if (reticleRef.current) reticleRef.current.rotation.z = clock.elapsedTime * 0.075;
     if (tideRef.current) tideRef.current.position.y = 1.2 + Math.sin(clock.elapsedTime * 0.65) * 0.35;
   });
 
@@ -584,27 +737,46 @@ function MarineIntelligence({
       </group>
 
       <group ref={coreRef} position={[0, 0.2, -29]} scale={0}>
-        <mesh>
-          <icosahedronGeometry args={[0.7, quality === 'high' ? 3 : 2]} />
+        <mesh rotation={[Math.PI / 2, 0, 0]}>
+          <cylinderGeometry args={[0.72, 0.72, 0.14, quality === 'high' ? 48 : 28]} />
           <meshStandardMaterial
-            color="#1da9aa"
-            emissive="#0b777d"
-            emissiveIntensity={1.35}
-            roughness={0.28}
-            metalness={0.22}
+            color="#123c43"
+            emissive="#0a5458"
+            emissiveIntensity={0.58}
+            roughness={0.24}
+            metalness={0.46}
+            transparent
+            opacity={0.92}
           />
         </mesh>
-        <mesh scale={1.45}>
-          <icosahedronGeometry args={[0.7, 1]} />
+        <mesh position={[0, 0, 0.085]}>
+          <circleGeometry args={[0.58, quality === 'high' ? 48 : 28]} />
           <meshBasicMaterial
-            color="#79e2d6"
-            wireframe
+            color="#0e6970"
             transparent
-            opacity={0.22}
+            opacity={0.34}
             depthWrite={false}
           />
         </mesh>
-        <pointLight color="#58d5cd" intensity={2.2} distance={7} decay={2} />
+        <group ref={reticleRef} position={[0, 0, 0.13]}>
+          <mesh>
+            <ringGeometry args={[0.42, 0.445, quality === 'high' ? 48 : 28]} />
+            <meshBasicMaterial color="#86d7cf" transparent opacity={0.5} depthWrite={false} />
+          </mesh>
+          <mesh>
+            <ringGeometry args={[0.17, 0.18, 32]} />
+            <meshBasicMaterial color="#d5ad68" transparent opacity={0.65} depthWrite={false} />
+          </mesh>
+          <mesh>
+            <boxGeometry args={[0.94, 0.012, 0.012]} />
+            <meshBasicMaterial color="#8adbd2" transparent opacity={0.34} depthWrite={false} />
+          </mesh>
+          <mesh>
+            <boxGeometry args={[0.012, 0.94, 0.012]} />
+            <meshBasicMaterial color="#8adbd2" transparent opacity={0.34} depthWrite={false} />
+          </mesh>
+        </group>
+        <pointLight color="#61cfc5" intensity={0.85} distance={4.5} decay={2} />
       </group>
     </group>
   );
@@ -613,40 +785,59 @@ function MarineIntelligence({
 function DecisionWorld({ progress }: Pick<Homepage3DSceneProps, 'progress'>) {
   const groupRef = useRef<THREE.Group>(null);
   const haloRef = useRef<THREE.MeshBasicMaterial>(null);
+  const frameMaterialsRef = useRef<Array<THREE.MeshBasicMaterial | null>>([]);
+  const accentMaterialRef = useRef<THREE.MeshBasicMaterial>(null);
 
   useFrame(({ clock }) => {
-    const reveal = smoothRange(0.79, 0.91, progress.get());
+    const reveal = homeVisualPresence('decision', progress.get());
     groupRef.current?.scale.setScalar(0.76 + reveal * 0.24);
     if (groupRef.current) groupRef.current.visible = reveal > 0.005;
+    if (reveal <= 0.005) return;
     if (haloRef.current) {
       haloRef.current.opacity = reveal * (0.07 + Math.sin(clock.elapsedTime * 0.4) * 0.015);
     }
+    frameMaterialsRef.current.forEach((material) => {
+      if (material) material.opacity = reveal * 0.24;
+    });
+    if (accentMaterialRef.current) accentMaterialRef.current.opacity = reveal * 0.42;
   });
 
   return (
     <group ref={groupRef} position={[0, 0.15, -50]} visible={false}>
-      <mesh>
-        <boxGeometry args={[9.8, 5.8, 0.18]} />
-        <meshStandardMaterial color="#062431" roughness={0.6} metalness={0.16} />
-      </mesh>
-      <mesh position={[0, 0, 0.12]}>
-        <planeGeometry args={[9.35, 5.35]} />
-        <meshBasicMaterial color="#031923" />
-      </mesh>
-      {[-3.55, -1.2, 1.2, 3.55].map((x) => (
-        <mesh key={x} position={[x, 0.35, 0.23]}>
-          <boxGeometry args={[1.85, 3.45, 0.08]} />
-          <meshStandardMaterial color="#0a3541" roughness={0.72} metalness={0.08} />
-        </mesh>
-      ))}
-      <mesh position={[0, 0, -0.5]} scale={[1.2, 0.85, 1]}>
-        <sphereGeometry args={[6.6, 28, 16]} />
+      <mesh position={[0, 0, -0.035]}>
+        <planeGeometry args={[9.35, 5.25]} />
         <meshBasicMaterial
           ref={haloRef}
-          color="#4cc9c2"
+          color="#092d37"
           transparent
-          opacity={0.06}
-          side={THREE.BackSide}
+          opacity={0}
+          depthWrite={false}
+        />
+      </mesh>
+      {[
+        { key: 'top', position: [0, 2.62, 0] as const, size: [9.35, 0.018, 0.018] as const },
+        { key: 'bottom', position: [0, -2.62, 0] as const, size: [9.35, 0.018, 0.018] as const },
+        { key: 'start', position: [-4.67, 0, 0] as const, size: [0.018, 5.25, 0.018] as const },
+        { key: 'end', position: [4.67, 0, 0] as const, size: [0.018, 5.25, 0.018] as const },
+      ].map(({ key, position, size }, index) => (
+        <mesh key={key} position={[...position]}>
+          <boxGeometry args={[...size]} />
+          <meshBasicMaterial
+            ref={(material) => { frameMaterialsRef.current[index] = material; }}
+            color="#76c9c3"
+            transparent
+            opacity={0}
+            depthWrite={false}
+          />
+        </mesh>
+      ))}
+      <mesh position={[0, -2.61, 0.025]}>
+        <boxGeometry args={[2.4, 0.035, 0.025]} />
+        <meshBasicMaterial
+          ref={accentMaterialRef}
+          color="#d4a35d"
+          transparent
+          opacity={0}
           depthWrite={false}
         />
       </mesh>
@@ -657,14 +848,13 @@ function DecisionWorld({ progress }: Pick<Homepage3DSceneProps, 'progress'>) {
 export function Homepage3DScene(props: Homepage3DSceneProps) {
   return (
     <>
-      <color attach="background" args={['#020d16']} />
       <fog attach="fog" args={['#03121b', 13, 62]} />
       <ambientLight intensity={0.55} color="#86b8b5" />
       <hemisphereLight args={['#7ad1cc', '#02101a', 0.95]} />
       <directionalLight position={[-8, 12, 5]} intensity={1.15} color="#d2e7df" />
       <CameraRig progress={props.progress} pointerX={props.pointerX} pointerY={props.pointerY} />
-      <Ocean quality={props.quality} />
-      <Atmosphere quality={props.quality} />
+      <Ocean quality={props.quality} progress={props.progress} />
+      <Atmosphere quality={props.quality} progress={props.progress} />
       <FishingCoast spots={props.spots} progress={props.progress} quality={props.quality} />
       <MarineIntelligence labels={props.labels} progress={props.progress} quality={props.quality} />
       <DecisionWorld progress={props.progress} />

@@ -137,6 +137,50 @@ function OceanLayers({ pointerX, pointerY }: {
   );
 }
 
+function CinematicBackdrop({
+  progress,
+  pointerX,
+  pointerY,
+}: {
+  progress: ReturnType<typeof useMotionValue<number>>;
+  pointerX: ReturnType<typeof useMotionValue<number>>;
+  pointerY: ReturnType<typeof useMotionValue<number>>;
+}) {
+  const opacity = useTransform(
+    progress,
+    [0, 0.25, 0.52, 0.78, 1],
+    [1, 0.96, 0.72, 0.42, 0.2]
+  );
+  const scale = useTransform(progress, [0, 0.52, 1], [1.03, 1.1, 1.16]);
+  const x = useTransform(pointerX, (value) => value * 0.16);
+  const y = useTransform(pointerY, (value) => value * 0.12);
+
+  return (
+    <motion.div
+      className={styles.cinematicBackdrop}
+      style={{ opacity }}
+      aria-hidden="true"
+    >
+      <motion.picture className={styles.backdropPicture} style={{ scale, x, y }}>
+        <source srcSet="/images/home/atlantic-coast-dawn.avif" type="image/avif" />
+        {/* The native picture source prevents a second optimized-image request. */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/images/home/atlantic-coast-dawn.webp"
+          alt=""
+          width="1672"
+          height="941"
+          loading="eager"
+          decoding="async"
+          fetchPriority="high"
+          className={styles.backdropImage}
+        />
+      </motion.picture>
+      <span className={styles.backdropAtmosphere} />
+    </motion.div>
+  );
+}
+
 function StoryCopy({
   eyebrow,
   title,
@@ -290,6 +334,7 @@ function CinematicStory({ spots }: { spots: readonly Spot[] }) {
   const [motionMode, setMotionMode] = useState<HomeMotionMode>('auto');
   const [animationsPaused, setAnimationsPaused] = useState(false);
   const [webglReady, setWebglReady] = useState(false);
+  const [webglFailed, setWebglFailed] = useState(false);
   const staticStory = shouldUseStaticStory(systemReducedMotion, motionMode);
   const selectedSpot = spots.find((spot) => spot.slug === 'tifnit') ?? spots[0];
   const { scrollYProgress } = useScroll({
@@ -403,8 +448,14 @@ function CinematicStory({ spots }: { spots: readonly Spot[] }) {
     pointerY.set(0);
   }, [pointerX, pointerY]);
 
-  const handleWebglReady = useCallback(() => setWebglReady(true), []);
-  const handleWebglFailure = useCallback(() => setWebglReady(false), []);
+  const handleWebglReady = useCallback(() => {
+    setWebglFailed(false);
+    setWebglReady(true);
+  }, []);
+  const handleWebglFailure = useCallback(() => {
+    setWebglFailed(true);
+    setWebglReady(false);
+  }, []);
 
   return (
     <>
@@ -418,6 +469,7 @@ function CinematicStory({ spots }: { spots: readonly Spot[] }) {
         data-motion-mode={staticStory ? 'reduced' : motionMode}
         data-animations-paused={animationsPaused ? 'true' : 'false'}
         data-webgl-ready={webglReady ? 'true' : 'false'}
+        data-webgl-failed={webglFailed ? 'true' : 'false'}
       >
         <div
           ref={stageRef}
@@ -426,6 +478,11 @@ function CinematicStory({ spots }: { spots: readonly Spot[] }) {
           onPointerMove={handlePointerMove}
           onPointerLeave={resetPointer}
         >
+          <CinematicBackdrop
+            progress={scrollYProgress}
+            pointerX={pointerXSoft}
+            pointerY={pointerYSoft}
+          />
           <OceanLayers pointerX={pointerXSoft} pointerY={pointerYSoft} />
           <Homepage3DEnhancement
             active={!animationsPaused}

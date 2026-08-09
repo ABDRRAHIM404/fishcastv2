@@ -188,25 +188,67 @@ function smoothstep(value: number): number {
   return clamped * clamped * (3 - 2 * clamped);
 }
 
-function interpolateNumber(from: number, to: number, amount: number): number {
-  return from + (to - from) * amount;
+type CameraValueSelector = (keyframe: Home3DCameraKeyframe) => number;
+
+/**
+ * Returns a derivative in progress-space for a camera value. Interior
+ * keyframes share one centred derivative between their incoming and outgoing
+ * segments, which removes the stop/start motion created by easing every
+ * segment independently. Endpoints use a deterministic one-sided derivative.
+ */
+function cameraTangent(
+  keyframes: CameraJourney,
+  index: number,
+  select: CameraValueSelector
+): number {
+  const current = keyframes[index]!;
+  const previous = keyframes[index - 1];
+  const next = keyframes[index + 1];
+
+  if (!previous && next) {
+    const span = next.progress - current.progress;
+    return span > 0 ? (select(next) - select(current)) / span : 0;
+  }
+  if (previous && !next) {
+    const span = current.progress - previous.progress;
+    return span > 0 ? (select(current) - select(previous)) / span : 0;
+  }
+  if (!previous || !next) return 0;
+
+  const span = next.progress - previous.progress;
+  return span > 0 ? (select(next) - select(previous)) / span : 0;
 }
 
-function interpolateVector(
-  from: Home3DVector,
-  to: Home3DVector,
-  amount: number
-): Home3DVector {
-  return [
-    interpolateNumber(from[0], to[0], amount),
-    interpolateNumber(from[1], to[1], amount),
-    interpolateNumber(from[2], to[2], amount),
-  ];
+/** Cubic Hermite interpolation with tangents expressed per progress unit. */
+function interpolateCameraValue(
+  from: number,
+  to: number,
+  fromTangent: number,
+  toTangent: number,
+  localProgress: number,
+  segmentSpan: number
+): number {
+  const amount = clampHome3DProgress(localProgress);
+  const squared = amount * amount;
+  const cubed = squared * amount;
+  const fromBasis = 2 * cubed - 3 * squared + 1;
+  const fromTangentBasis = cubed - 2 * squared + amount;
+  const toBasis = -2 * cubed + 3 * squared;
+  const toTangentBasis = cubed - squared;
+
+  return (
+    fromBasis * from +
+    fromTangentBasis * segmentSpan * fromTangent +
+    toBasis * to +
+    toTangentBasis * segmentSpan * toTangent
+  );
 }
 
 /**
- * Samples the camera directly from clamped scroll progress. Smoothstep only
- * shapes the local interpolation curve; it adds no temporal lag or catch-up.
+ * Samples the camera directly from clamped scroll progress. A non-uniform
+ * cubic Hermite path passes through every authored keyframe while preserving a
+ * shared first derivative at interior keyframes. It remains a pure progress
+ * lookup: there is no temporal state, lag, locale input, or catch-up behavior.
  */
 export function sampleHomeCamera(
   value: number,
@@ -229,11 +271,26 @@ export function sampleHomeCamera(
 
     const span = to.progress - from.progress;
     const localProgress = span <= 0 ? 1 : (progress - from.progress) / span;
-    const amount = smoothstep(localProgress);
+    const interpolate = (select: CameraValueSelector) => interpolateCameraValue(
+      select(from),
+      select(to),
+      cameraTangent(keyframes, index - 1, select),
+      cameraTangent(keyframes, index, select),
+      localProgress,
+      span
+    );
     return {
-      position: interpolateVector(from.position, to.position, amount),
-      target: interpolateVector(from.target, to.target, amount),
-      fov: interpolateNumber(from.fov, to.fov, amount),
+      position: [
+        interpolate((keyframe) => keyframe.position[0]),
+        interpolate((keyframe) => keyframe.position[1]),
+        interpolate((keyframe) => keyframe.position[2]),
+      ],
+      target: [
+        interpolate((keyframe) => keyframe.target[0]),
+        interpolate((keyframe) => keyframe.target[1]),
+        interpolate((keyframe) => keyframe.target[2]),
+      ],
+      fov: interpolate((keyframe) => keyframe.fov),
     };
   }
 
@@ -267,6 +324,36 @@ export const HOME_3D_TEXT_WINDOWS = {
 export function homeSceneOpacity(scene: HomeStoryScene, value: number): number {
   const progress = clampHome3DProgress(value);
   const window = HOME_3D_TEXT_WINDOWS[scene];
+
+  if (progress < window.enterStart || progress > window.exitEnd) return 0;
+  if (progress < window.visibleStart) {
+    const span = window.visibleStart - window.enterStart;
+    return span <= 0 ? 1 : smoothstep((progress - window.enterStart) / span);
+  }
+  if (progress <= window.visibleEnd) return 1;
+
+  const span = window.exitEnd - window.visibleEnd;
+  return span <= 0 ? 0 : 1 - smoothstep((progress - window.visibleEnd) / span);
+}
+
+export type Home3DVisualLayer = 'ocean' | 'coast' | 'marine' | 'decision';
+
+/**
+ * World-layer windows intentionally overlap so the continuous environment can
+ * hand visual focus from the Atlantic to the coast, analysis, and decision
+ * without a blank frame. These stable spatial identifiers are never localized.
+ */
+export const HOME_3D_VISUAL_WINDOWS = {
+  ocean: { enterStart: 0, visibleStart: 0, visibleEnd: 0.34, exitEnd: 0.62 },
+  coast: { enterStart: 0.14, visibleStart: 0.25, visibleEnd: 0.5, exitEnd: 0.7 },
+  marine: { enterStart: 0.42, visibleStart: 0.52, visibleEnd: 0.74, exitEnd: 0.86 },
+  decision: { enterStart: 0.74, visibleStart: 0.82, visibleEnd: 1, exitEnd: 1 },
+} as const satisfies Readonly<Record<Home3DVisualLayer, Home3DTextWindow>>;
+
+/** Returns a finite, clamped opacity for a scroll-linked world layer. */
+export function homeVisualPresence(layer: Home3DVisualLayer, value: number): number {
+  const progress = clampHome3DProgress(value);
+  const window = HOME_3D_VISUAL_WINDOWS[layer];
 
   if (progress < window.enterStart || progress > window.exitEnd) return 0;
   if (progress < window.visibleStart) {
