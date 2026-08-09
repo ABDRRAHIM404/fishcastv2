@@ -120,6 +120,20 @@ function StoryCopy({
   );
 }
 
+function ExploreMapButton({ size = 'default' }: { size?: 'default' | 'lg' }) {
+  const { t } = useI18n();
+
+  return (
+    <Button asChild size={size} variant="outline" className={styles.mapCta}>
+      <Link href={HOME_CTA_ROUTES.map}>
+        <MapPin aria-hidden="true" />
+        <span>{t('home.exploreMap')}</span>
+        <ArrowRight className={styles.mapCtaArrow} aria-hidden="true" />
+      </Link>
+    </Button>
+  );
+}
+
 function SelectedSpotCard({ spot }: { spot?: Spot }) {
   const { t } = useI18n();
   if (!spot) return null;
@@ -480,9 +494,7 @@ export function HomepageCinematicStory({ spots }: { spots: readonly Spot[] }) {
                 <Button asChild size="lg">
                   <Link href={HOME_CTA_ROUTES.forecast}>{t('home.final.checkForecast')}</Link>
                 </Button>
-                <Button asChild size="lg" variant="outline">
-                  <Link href={HOME_CTA_ROUTES.map}>{t('home.exploreMap')}</Link>
-                </Button>
+                <ExploreMapButton size="lg" />
               </div>
             </StoryCopy>
             <div className={styles.scrollCue} aria-hidden="true">
@@ -503,9 +515,7 @@ export function HomepageCinematicStory({ spots }: { spots: readonly Spot[] }) {
             {...sceneA11yProps(staticStory, activeScene, 'spot')}
           >
             <StoryCopy title={t('home.story.spot.title')} description={t('home.story.spot.description')}>
-              <Button asChild variant="outline">
-                <Link href={HOME_CTA_ROUTES.map}>{t('home.exploreMap')}</Link>
-              </Button>
+              <ExploreMapButton />
             </StoryCopy>
             <SelectedSpotCard spot={selectedSpot} />
           </motion.div>

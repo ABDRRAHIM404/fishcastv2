@@ -17,6 +17,7 @@ import {
   selectSequenceMode,
   selectSequenceVariant,
   sequenceFrameAtProgress,
+  sequenceFrameSample,
   sequenceLoadPriority,
 } from '@/lib/homepage/sequence';
 
@@ -80,6 +81,92 @@ describe('homepage sequence manifests', () => {
     expect(clampSequenceProgress(Number.NaN)).toBe(0);
     expect(frameIndexForProgress(-10, desktop)).toBe(0);
     expect(frameIndexForProgress(10, desktop)).toBe(219);
+  });
+
+  it('returns a deterministic fractional sample for adjacent-frame blending', () => {
+    expect(sequenceFrameSample(0, 5)).toEqual({
+      position: 0,
+      lowerIndex: 0,
+      upperIndex: 1,
+      mix: 0,
+      nearestIndex: 0,
+    });
+    expect(sequenceFrameSample(0.375, 5)).toEqual({
+      position: 1.5,
+      lowerIndex: 1,
+      upperIndex: 2,
+      mix: 0.5,
+      nearestIndex: 2,
+    });
+    expect(sequenceFrameSample(1, 5)).toEqual({
+      position: 4,
+      lowerIndex: 4,
+      upperIndex: 4,
+      mix: 0,
+      nearestIndex: 4,
+    });
+    expect(sequenceFrameSample(Number.NaN, 5)?.position).toBe(0);
+    expect(sequenceFrameSample(0.5, 0)).toBeNull();
+  });
+
+  it('samples the same fractional position immediately in either scroll direction', () => {
+    const manifest = HOME_SEQUENCE_MANIFESTS.mobile;
+    const forward = sequenceFrameSample(0.421, manifest);
+    sequenceFrameSample(0.93, manifest);
+    const backward = sequenceFrameSample(0.421, manifest);
+    expect(backward).toEqual(forward);
+  });
+
+  it('preserves original source cadence through supplied-ID gaps', () => {
+    const desktop = HOME_SEQUENCE_MANIFESTS.desktop;
+    const mobile = HOME_SEQUENCE_MANIFESTS.mobile;
+    const sourceProgress = (
+      sourceId: number,
+      manifest: typeof desktop | typeof mobile
+    ) => (
+      (sourceId - manifest.frameIds[0]!) /
+      (manifest.frameIds.at(-1)! - manifest.frameIds[0]!)
+    );
+
+    const desktopGap = sequenceFrameSample(sourceProgress(218, desktop), desktop);
+    expect(desktopGap).toMatchObject({
+      position: 216.5,
+      lowerIndex: 216,
+      upperIndex: 217,
+      mix: 0.5,
+      nearestIndex: 217,
+    });
+    expect(desktop.frameIds[desktopGap!.lowerIndex]).toBe(217);
+    expect(desktop.frameIds[desktopGap!.upperIndex]).toBe(219);
+
+    const mobileFirstGap = sequenceFrameSample(sourceProgress(218, mobile), mobile);
+    const mobileSecondGap = sequenceFrameSample(sourceProgress(219, mobile), mobile);
+    expect(mobileFirstGap).toMatchObject({
+      lowerIndex: 216,
+      upperIndex: 217,
+      nearestIndex: 216,
+    });
+    expect(mobileFirstGap!.position).toBeCloseTo(216 + 1 / 3);
+    expect(mobileFirstGap!.mix).toBeCloseTo(1 / 3);
+    expect(mobileSecondGap).toMatchObject({
+      lowerIndex: 216,
+      upperIndex: 217,
+      nearestIndex: 217,
+    });
+    expect(mobileSecondGap!.position).toBeCloseTo(216 + 2 / 3);
+    expect(mobileSecondGap!.mix).toBeCloseTo(2 / 3);
+    expect(mobile.frameIds[mobileFirstGap!.lowerIndex]).toBe(217);
+    expect(mobile.frameIds[mobileFirstGap!.upperIndex]).toBe(220);
+  });
+
+  it('keeps the numeric frame-count overload compact and unchanged', () => {
+    expect(sequenceFrameSample(0.425, 11)).toEqual({
+      position: 4.25,
+      lowerIndex: 4,
+      upperIndex: 5,
+      mix: 0.25,
+      nearestIndex: 4,
+    });
   });
 
   it('contains each compact manifest ID exactly once', () => {
@@ -161,6 +248,27 @@ describe('homepage progressive frame loading', () => {
     expect(forward.indexOf(101)).toBeLessThan(forward.indexOf(99));
     expect(backward[0]).toBe(100);
     expect(backward.indexOf(99)).toBeLessThan(backward.indexOf(101));
+  });
+
+  it('prioritizes both exact blend neighbours before contiguous lookahead', () => {
+    const manifest = HOME_SEQUENCE_MANIFESTS.desktop;
+    const sourceSpan = manifest.frameIds.at(-1)! - manifest.frameIds[0]!;
+    const sample = sequenceFrameSample(100.35 / sourceSpan, manifest);
+    expect(sample).not.toBeNull();
+    const plan = sequenceLoadPriority({
+      manifest,
+      targetIndex: sample!.nearestIndex,
+      previousIndex: 96,
+      sample,
+      direction: 'forward',
+      mode: 'full',
+    });
+
+    expect(new Set(plan.slice(0, 2))).toEqual(new Set([100, 101]));
+    for (let index = 102; index <= 112; index += 1) {
+      expect(plan).toContain(index);
+    }
+    expect(plan.indexOf(102)).toBeLessThan(plan.indexOf(96));
   });
 
   it('deduplicates and bounds neighbours, narrative anchors, and coarse anchors', () => {

@@ -56,20 +56,130 @@ export function clampSequenceProgress(value: number): number {
   return Math.min(1, Math.max(0, value));
 }
 
-/** Stateless scroll-to-frame lookup. The same progress always returns the same index. */
-export function frameIndexForProgress(
-  value: number,
+function normalizedFrameCount(
   manifestOrFrameCount: HomeSequenceManifest | number
 ): number {
   const rawCount =
     typeof manifestOrFrameCount === 'number'
       ? manifestOrFrameCount
       : manifestOrFrameCount.frameIds.length;
-  const frameCount = Number.isFinite(rawCount)
-    ? Math.max(0, Math.floor(rawCount))
-    : 0;
-  if (frameCount <= 1) return 0;
-  return Math.round(clampSequenceProgress(value) * (frameCount - 1));
+  return Number.isFinite(rawCount) ? Math.max(0, Math.floor(rawCount)) : 0;
+}
+
+export interface HomeSequenceFrameSample {
+  /** Exact stateless position in the compact manifest timeline. */
+  position: number;
+  lowerIndex: number;
+  upperIndex: number;
+  /** Blend weight of upperIndex in the inclusive range 0–1. */
+  mix: number;
+  nearestIndex: number;
+}
+
+function sampleAtCompactPosition(
+  position: number,
+  frameCount: number
+): HomeSequenceFrameSample {
+  const lowerIndex = Math.floor(position);
+  const upperIndex = Math.min(frameCount - 1, lowerIndex + 1);
+  const mix = upperIndex === lowerIndex ? 0 : position - lowerIndex;
+  return {
+    position,
+    lowerIndex,
+    upperIndex,
+    mix,
+    nearestIndex: mix < 0.5 ? lowerIndex : upperIndex,
+  };
+}
+
+/**
+ * Converts an original source-frame position to compact manifest space. Gaps
+ * retain their original duration, but their neighbouring supplied frames are
+ * blended; no missing source ID is ever returned or requested.
+ */
+function manifestCompactPosition(
+  progress: number,
+  manifest: HomeSequenceManifest
+): number | null {
+  const frameIds = manifest.frameIds;
+  const frameCount = frameIds.length;
+  if (frameCount === 0) return null;
+  if (frameCount === 1) return 0;
+
+  const firstId = frameIds[0];
+  const finalId = frameIds[frameCount - 1];
+  if (
+    firstId === undefined ||
+    finalId === undefined ||
+    !Number.isFinite(firstId) ||
+    !Number.isFinite(finalId) ||
+    finalId <= firstId
+  ) {
+    return progress * (frameCount - 1);
+  }
+
+  const sourcePosition = firstId + progress * (finalId - firstId);
+  let low = 0;
+  let high = frameCount - 1;
+  while (low <= high) {
+    const middle = Math.floor((low + high) / 2);
+    const middleId = frameIds[middle];
+    if (middleId === undefined) break;
+    if (middleId < sourcePosition) low = middle + 1;
+    else high = middle - 1;
+  }
+
+  const upperIndex = Math.min(frameCount - 1, low);
+  const upperId = frameIds[upperIndex];
+  if (upperId === undefined) return progress * (frameCount - 1);
+  const equalityTolerance = Number.EPSILON * Math.max(1, Math.abs(sourcePosition)) * 8;
+  if (Math.abs(upperId - sourcePosition) <= equalityTolerance || upperIndex === 0) {
+    return upperIndex;
+  }
+
+  const lowerIndex = upperIndex - 1;
+  const lowerId = frameIds[lowerIndex];
+  if (lowerId === undefined || upperId <= lowerId) {
+    return progress * (frameCount - 1);
+  }
+  return lowerIndex + (sourcePosition - lowerId) / (upperId - lowerId);
+}
+
+/**
+ * Maps progress to two adjacent frames without temporal state. Rendering may
+ * blend these frames, so touch scrolling remains continuous while reverse
+ * movement responds on the same animation frame.
+ */
+export function sequenceFrameSample(
+  value: number,
+  manifestOrFrameCount: HomeSequenceManifest | number
+): HomeSequenceFrameSample | null {
+  const frameCount = normalizedFrameCount(manifestOrFrameCount);
+  if (frameCount === 0) return null;
+  if (frameCount === 1) {
+    return {
+      position: 0,
+      lowerIndex: 0,
+      upperIndex: 0,
+      mix: 0,
+      nearestIndex: 0,
+    };
+  }
+
+  const progress = clampSequenceProgress(value);
+  const position = typeof manifestOrFrameCount === 'number'
+    ? progress * (frameCount - 1)
+    : manifestCompactPosition(progress, manifestOrFrameCount);
+  if (position === null) return null;
+  return sampleAtCompactPosition(position, frameCount);
+}
+
+/** Stateless scroll-to-frame lookup. The same progress always returns the same index. */
+export function frameIndexForProgress(
+  value: number,
+  manifestOrFrameCount: HomeSequenceManifest | number
+): number {
+  return sequenceFrameSample(value, manifestOrFrameCount)?.nearestIndex ?? 0;
 }
 
 /** Resolves normalized progress directly to a source frame ID. */
@@ -191,6 +301,8 @@ export interface HomeSequenceLoadPlanInput {
   manifest: HomeSequenceManifest;
   targetIndex: number;
   previousIndex?: number | null;
+  sample?: HomeSequenceFrameSample | null;
+  direction?: HomeSequenceDirection;
   mode: HomeSequenceMode;
 }
 
@@ -244,7 +356,7 @@ export function sequenceLoadPriority(
     input.previousIndex === null || input.previousIndex === undefined
       ? input.previousIndex
       : boundedFrameIndex(input.previousIndex, frameCount);
-  const direction = directionForIndices(targetIndex, previousIndex);
+  const direction = input.direction ?? directionForIndices(targetIndex, previousIndex);
   const directionSign = direction === 'backward' ? -1 : 1;
   const result: number[] = [];
   const seen = new Set<number>();
@@ -256,19 +368,29 @@ export function sequenceLoadPriority(
     result.push(index);
   };
 
-  add(targetIndex);
-  const neighbourOffsets =
-    input.mode === 'full'
-      ? [directionSign, directionSign * 2, -directionSign, directionSign * 3, -directionSign * 2]
-      : [directionSign, -directionSign];
+  const sample = input.sample;
+  if (sample) {
+    add(sample.nearestIndex);
+    add(sample.nearestIndex === sample.lowerIndex ? sample.upperIndex : sample.lowerIndex);
+  } else {
+    add(targetIndex);
+  }
+
+  const forwardDepth = input.mode === 'full' ? 12 : 5;
+  const reverseDepth = input.mode === 'full' ? 4 : 2;
+  const neighbourOffsets: number[] = [];
+  for (let distance = 1; distance <= forwardDepth; distance += 1) {
+    neighbourOffsets.push(directionSign * distance);
+    if (distance <= reverseDepth) neighbourOffsets.push(-directionSign * distance);
+  }
   neighbourOffsets.forEach((offset) => add(targetIndex + offset));
 
   const narrativeAnchors = HOME_SEQUENCE_NARRATIVE_PROGRESS.map((progress) =>
-    frameIndexForProgress(progress, frameCount)
+    frameIndexForProgress(progress, input.manifest)
   );
   indicesByProximity(narrativeAnchors, targetIndex, direction).forEach(add);
 
-  const coarseStep = input.mode === 'full' ? 8 : 18;
+  const coarseStep = input.mode === 'full' ? 12 : 24;
   const coarseAnchors: number[] = [];
   for (let index = 0; index < frameCount; index += coarseStep) {
     coarseAnchors.push(index);

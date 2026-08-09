@@ -5,13 +5,14 @@ import type { MotionValue } from 'framer-motion';
 import {
   HOME_SEQUENCE_MANIFESTS,
   canvasCoverCrop,
-  frameIndexForProgress,
   frameUrl,
   nearestLoadedFrame,
   selectSequenceMode,
   selectSequenceVariant,
+  sequenceFrameSample,
   sequenceLoadPriority,
   type HomeSequenceDirection,
+  type HomeSequenceFrameSample,
   type HomeSequenceManifest,
   type HomeSequenceMode,
   type HomeSequenceVariant,
@@ -42,13 +43,15 @@ interface CachedFrame {
 interface PendingFrame {
   abortController: AbortController;
   generation: number;
+  startedAt: number;
 }
 
 const FULL_CACHE_LIMIT = 14;
 const ECONOMY_CACHE_LIMIT = 8;
 const FULL_CONCURRENCY = 3;
 const ECONOMY_CONCURRENCY = 2;
-const FAST_SCRUB_DISTANCE = 7;
+const ABORT_SETTLE_MS = 90;
+const ABORT_THROTTLE_MS = 140;
 
 function isAbortError(error: unknown): boolean {
   return error instanceof DOMException && error.name === 'AbortError';
@@ -151,10 +154,15 @@ class SequenceRuntime {
   private manifest: HomeSequenceManifest = HOME_SEQUENCE_MANIFESTS.mobile;
   private variant: HomeSequenceVariant | null = null;
   private mode: HomeSequenceMode = 'full';
+  private sample: HomeSequenceFrameSample = sequenceFrameSample(
+    0,
+    HOME_SEQUENCE_MANIFESTS.mobile
+  )!;
   private targetIndex = 0;
   private previousIndex: number | null = null;
   private direction: HomeSequenceDirection = 'stationary';
-  private displayedIndex: number | null = null;
+  private displayedIndices: readonly number[] = [];
+  private lastAbortAt = Number.NEGATIVE_INFINITY;
   private generation = 0;
   private useCounter = 0;
   private inputActive = false;
@@ -223,12 +231,14 @@ class SequenceRuntime {
   };
 
   private readonly handleProgress = (value: number) => {
-    const nextIndex = frameIndexForProgress(value, this.manifest);
-    if (nextIndex === this.targetIndex) return;
+    const nextSample = sequenceFrameSample(value, this.manifest);
+    if (!nextSample || nextSample.position === this.sample.position) return;
+    const oldPosition = this.sample.position;
     const oldIndex = this.targetIndex;
+    this.sample = nextSample;
     this.previousIndex = oldIndex;
-    this.targetIndex = nextIndex;
-    this.direction = directionBetween(nextIndex, oldIndex);
+    this.targetIndex = nextSample.nearestIndex;
+    this.direction = directionBetween(nextSample.position, oldPosition);
     if (this.canWork()) this.scheduleWork();
   };
 
@@ -278,10 +288,11 @@ class SequenceRuntime {
     this.queue = [];
     this.variant = variant;
     this.manifest = HOME_SEQUENCE_MANIFESTS[variant];
-    this.targetIndex = frameIndexForProgress(this.progress.get(), this.manifest);
+    this.sample = sequenceFrameSample(this.progress.get(), this.manifest)!;
+    this.targetIndex = this.sample.nearestIndex;
     this.previousIndex = null;
     this.direction = 'stationary';
-    this.displayedIndex = null;
+    this.displayedIndices = [];
     this.context.clearRect(0, 0, this.canvas.width, this.canvas.height);
   }
 
@@ -300,6 +311,8 @@ class SequenceRuntime {
     if (this.canvas.width === pixelWidth && this.canvas.height === pixelHeight) return;
     this.canvas.width = pixelWidth;
     this.canvas.height = pixelHeight;
+    this.context.imageSmoothingEnabled = true;
+    this.context.imageSmoothingQuality = this.mode === 'full' ? 'high' : 'medium';
     this.drawBestFrame();
   }
 
@@ -319,17 +332,43 @@ class SequenceRuntime {
       manifest: this.manifest,
       targetIndex: this.targetIndex,
       previousIndex: this.previousIndex,
+      sample: this.sample,
+      direction: this.direction,
       mode: this.mode,
     });
-    this.queue = priorities.filter(
+    // The desired resident window cannot exceed the decoded cache. Once every
+    // desired frame is resident, the queue therefore settles instead of
+    // repeatedly decoding and evicting its own tail.
+    const planLimit = this.mode === 'full' ? FULL_CACHE_LIMIT : ECONOMY_CACHE_LIMIT;
+    this.queue = priorities.slice(0, planLimit).filter(
       (index) => !this.cache.has(index) && !this.pending.has(index) && !this.failed.has(index)
     );
 
-    const scrubDistance = Math.abs(this.targetIndex - (this.previousIndex ?? this.targetIndex));
-    if (scrubDistance < FAST_SCRUB_DISTANCE) return;
-    const urgent = new Set(priorities.slice(0, this.mode === 'full' ? 8 : 4));
-    for (const [index, request] of this.pending) {
-      if (!urgent.has(index)) request.abortController.abort();
+    const exactIndices = new Set([
+      this.sample.lowerIndex,
+      this.sample.upperIndex,
+    ]);
+    const exactTargetBlocked = [...exactIndices].some(
+      (index) => (
+        !this.cache.has(index) &&
+        !this.pending.has(index) &&
+        !this.failed.has(index)
+      )
+    );
+    const concurrency = this.mode === 'full' ? FULL_CONCURRENCY : ECONOMY_CONCURRENCY;
+    if (!exactTargetBlocked || this.pending.size < concurrency) return;
+
+    const now = performance.now();
+    if (now - this.lastAbortAt < ABORT_THROTTLE_MS) return;
+    const staleRequest = [...this.pending.entries()]
+      .filter(([, request]) => now - request.startedAt >= ABORT_SETTLE_MS)
+      .filter(([index]) => !exactIndices.has(index))
+      .sort(([left], [right]) => (
+        Math.abs(right - this.sample.position) - Math.abs(left - this.sample.position)
+      ))[0];
+    if (staleRequest) {
+      this.lastAbortAt = now;
+      staleRequest[1].abortController.abort();
     }
   }
 
@@ -352,7 +391,11 @@ class SequenceRuntime {
 
     const abortController = new AbortController();
     const requestGeneration = this.generation;
-    const request = { abortController, generation: requestGeneration };
+    const request = {
+      abortController,
+      generation: requestGeneration,
+      startedAt: performance.now(),
+    };
     this.pending.set(index, request);
     void loadFrame(url, abortController.signal).then(
       (drawable) => {
@@ -389,6 +432,26 @@ class SequenceRuntime {
 
   private drawBestFrame(): void {
     if (this.cache.size === 0 || this.canvas.width <= 0 || this.canvas.height <= 0) return;
+    const lower = this.cache.get(this.sample.lowerIndex);
+    const upper = this.cache.get(this.sample.upperIndex);
+    if (
+      this.mode === 'full' &&
+      lower &&
+      upper &&
+      this.sample.lowerIndex !== this.sample.upperIndex
+    ) {
+      const lowerDrawn = this.drawFrame(lower, 1);
+      const upperDrawn = lowerDrawn && this.drawFrame(upper, this.sample.mix);
+      this.context.globalAlpha = 1;
+      if (lowerDrawn && upperDrawn) {
+        lower.lastUsed = ++this.useCounter;
+        upper.lastUsed = ++this.useCounter;
+        this.displayedIndices = [this.sample.lowerIndex, this.sample.upperIndex];
+        this.markReady();
+        return;
+      }
+    }
+
     const bestIndex = nearestLoadedFrame(
       this.targetIndex,
       [...this.cache.keys()],
@@ -399,6 +462,14 @@ class SequenceRuntime {
     const cached = this.cache.get(bestIndex);
     if (!cached) return;
 
+    if (!this.drawFrame(cached, 1)) return;
+    this.context.globalAlpha = 1;
+    cached.lastUsed = ++this.useCounter;
+    this.displayedIndices = [bestIndex];
+    this.markReady();
+  }
+
+  private drawFrame(cached: CachedFrame, opacity: number): boolean {
     const [sourceWidth, sourceHeight] = frameDimensions(cached.drawable);
     const crop = canvasCoverCrop(
       sourceWidth,
@@ -406,8 +477,9 @@ class SequenceRuntime {
       this.canvas.width,
       this.canvas.height
     );
-    if (crop.sourceWidth <= 0 || crop.sourceHeight <= 0) return;
+    if (crop.sourceWidth <= 0 || crop.sourceHeight <= 0) return false;
 
+    this.context.globalAlpha = Math.min(1, Math.max(0, opacity));
     this.context.drawImage(
       cached.drawable,
       crop.sourceX,
@@ -419,8 +491,10 @@ class SequenceRuntime {
       crop.destinationWidth,
       crop.destinationHeight
     );
-    cached.lastUsed = ++this.useCounter;
-    this.displayedIndex = bestIndex;
+    return true;
+  }
+
+  private markReady(): void {
     if (!this.readyReported) {
       this.readyReported = true;
       this.reportReady();
@@ -430,7 +504,12 @@ class SequenceRuntime {
   private evictCache(): void {
     const limit = this.mode === 'full' ? FULL_CACHE_LIMIT : ECONOMY_CACHE_LIMIT;
     if (this.cache.size <= limit) return;
-    const protectedIndices = new Set([this.targetIndex, this.displayedIndex]);
+    const protectedIndices = new Set([
+      this.targetIndex,
+      this.sample.lowerIndex,
+      this.sample.upperIndex,
+      ...this.displayedIndices,
+    ]);
     const candidates = [...this.cache.entries()]
       .filter(([index]) => !protectedIndices.has(index))
       .sort(([leftIndex, left], [rightIndex, right]) => {

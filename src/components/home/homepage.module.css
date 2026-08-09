@@ -150,6 +150,58 @@
   box-shadow: 0 14px 36px rgba(0, 0, 0, 0.22);
 }
 
+.mapCta.mapCta {
+  gap: 0.55rem;
+  border-color: rgba(133, 231, 221, 0.46);
+  color: #effcf9;
+  background:
+    linear-gradient(135deg, rgba(17, 79, 83, 0.92), rgba(6, 39, 47, 0.9));
+  box-shadow:
+    0 14px 34px rgba(0, 0, 0, 0.32),
+    inset 0 1px rgba(255, 255, 255, 0.08),
+    0 0 0 1px rgba(56, 199, 193, 0.06);
+  backdrop-filter: blur(10px) saturate(1.08);
+}
+
+.mapCta.mapCta:hover {
+  border-color: rgba(157, 242, 232, 0.76);
+  color: #fff;
+  background:
+    linear-gradient(135deg, rgba(21, 102, 103, 0.97), rgba(7, 53, 61, 0.94));
+  box-shadow:
+    0 17px 40px rgba(0, 0, 0, 0.38),
+    0 0 24px rgba(62, 206, 199, 0.14);
+}
+
+.mapCta.mapCta:focus-visible {
+  outline: 2px solid rgba(172, 247, 238, 0.95);
+  outline-offset: 3px;
+}
+
+.mapCta > svg:first-child {
+  width: 1rem;
+  color: #83e5dc;
+}
+
+.mapCtaArrow {
+  width: 0.92rem;
+  margin-inline-start: 0.1rem;
+  color: rgba(217, 249, 245, 0.82);
+  transition: transform 180ms ease;
+}
+
+.mapCta:hover .mapCtaArrow {
+  transform: translateX(2px);
+}
+
+[dir='rtl'] .mapCtaArrow {
+  transform: scaleX(-1);
+}
+
+[dir='rtl'] .mapCta:hover .mapCtaArrow {
+  transform: translateX(-2px) scaleX(-1);
+}
+
 .scrollCue {
   position: absolute;
   inset-inline-start: clamp(1.25rem, 5vw, 6rem);
@@ -287,6 +339,12 @@
   width: min(34rem, 48%);
 }
 
+.spotScene .mapCta {
+  display: flex;
+  width: max-content;
+  margin-top: 1.15rem;
+}
+
 .selectedSpotCard {
   position: relative;
   z-index: 8;
@@ -325,11 +383,12 @@
 }
 
 .selectedSpotIcon svg { width: 1.2rem; }
+.selectedSpotCard > span:nth-child(2) { min-width: 0; }
 .selectedSpotCard strong,
 .selectedSpotCard small,
 .cardMeta { display: block; }
-.selectedSpotCard strong { margin-top: 0.08rem; font-size: 1rem; }
-.selectedSpotCard small { margin-top: 0.12rem; color: rgba(215, 235, 233, 0.64); font-size: 0.7rem; }
+.selectedSpotCard strong { margin-top: 0.08rem; overflow: hidden; font-size: 1rem; text-overflow: ellipsis; white-space: nowrap; }
+.selectedSpotCard small { margin-top: 0.12rem; overflow: hidden; color: rgba(215, 235, 233, 0.64); font-size: 0.7rem; text-overflow: ellipsis; white-space: nowrap; }
 .cardMeta { color: hsl(var(--primary)); font-size: 0.6rem; font-weight: 720; letter-spacing: 0.1em; text-transform: uppercase; }
 .inlineArrow { width: 1.1rem; color: hsl(var(--primary)); }
 [dir='rtl'] .inlineArrow { transform: scaleX(-1); }
@@ -503,7 +562,7 @@
   left: 61%;
   top: 52%;
   display: flex;
-  width: clamp(7.5rem, 15vw, 11rem);
+  width: clamp(7rem, 12vw, 9.5rem);
   aspect-ratio: 1;
   flex-direction: column;
   align-items: center;
@@ -936,23 +995,62 @@
   }
   .spatialMarker b { display: none; }
   .spatialMarkerSelected b { display: block; font-size: 0.66rem; }
-  .spotScene { display: flex; flex-direction: column; justify-content: space-between; }
+  .spotScene {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    gap: clamp(1.35rem, 3.5vh, 2rem);
+    padding-top: clamp(2.75rem, 7vh, 4rem);
+    padding-bottom: calc(5.1rem + env(safe-area-inset-bottom));
+  }
   .spotScene .storyCopy { align-self: auto; width: 100%; }
-  .selectedSpotCard { width: 100%; margin: 0; }
+  .spotScene .storyTitle { max-width: 12ch; font-size: clamp(2.15rem, 9.5vw, 3.1rem); }
+  .spotScene .storyDescription { max-width: 25rem; margin-top: 0.85rem; font-size: 1rem; }
+  .spotScene .mapCta { min-height: 2.75rem; margin: 1rem auto 0; }
+  .selectedSpotCard {
+    width: min(18rem, calc(100% - 1rem));
+    min-height: 4.2rem;
+    margin: auto auto 0;
+    gap: 0.65rem;
+    padding: 0.62rem 0.72rem;
+    border-radius: 0.88rem;
+    background: linear-gradient(135deg, rgba(11, 46, 51, 0.72), rgba(3, 21, 27, 0.62));
+    backdrop-filter: blur(10px) saturate(1.06);
+  }
+  .selectedSpotIcon { width: 2.25rem; height: 2.25rem; border-radius: 0.65rem; }
+  .selectedSpotIcon svg { width: 1.05rem; }
+  .selectedSpotCard strong { font-size: 0.9rem; }
+  .selectedSpotCard small { font-size: 0.64rem; }
+  .selectedSpotCard .cardMeta { font-size: 0.53rem; }
 
-  .marineIntelligence { inset: 27% -8% 2%; }
+  .marineIntelligence {
+    inset: 31% max(0.75rem, env(safe-area-inset-right)) calc(5rem + env(safe-area-inset-bottom)) max(0.75rem, env(safe-area-inset-left));
+  }
   .conditionsScene { padding-top: 3.2rem; }
   .conditionsScene .storyCopy { width: 100%; }
-  .signalNode { min-height: 2.35rem; padding: 0.4rem 0.58rem; font-size: 0.65rem; }
-  .signalNode[data-signal='wind'] { left: 5%; top: 16%; }
-  .signalNode[data-signal='waves'] { left: 1%; top: 51%; }
-  .signalNode[data-signal='swell'] { left: 14%; bottom: 5%; }
-  .signalNode[data-signal='tide'] { right: 1%; top: 51%; }
-  .signalNode[data-signal='weather'] { right: 7%; top: 9%; }
-  .analysisLens { left: 52%; top: 50%; width: clamp(7.4rem, 34vw, 9.5rem); }
+  .signalNode {
+    box-sizing: border-box;
+    max-width: min(8.75rem, 43vw);
+    min-height: 2.25rem;
+    padding: 0.38rem 0.54rem;
+    font-size: 0.62rem;
+    line-height: 1.15;
+    overflow-wrap: anywhere;
+    white-space: normal;
+  }
+  .signalNode[data-signal='wind'] { left: 0; top: 13%; }
+  .signalNode[data-signal='waves'] { left: 0; top: 63%; }
+  .signalNode[data-signal='swell'] { left: 50%; bottom: 1%; transform: translateX(-50%); }
+  .signalNode[data-signal='tide'] { right: 0; top: 63%; }
+  .signalNode[data-signal='weather'] { right: 0; top: 13%; }
+  .analysisLens { left: 50%; top: 48%; width: clamp(6.1rem, 27vw, 7.2rem); }
+  .analysisLens::before { inset: -8%; }
+  .analysisLens strong { max-width: 6.5rem; font-size: 0.62rem; }
+  .analysisLens span { max-width: 5.75rem; font-size: 0.53rem; }
+  .analysisLens > svg { width: 1rem; }
   .marineParticle:nth-of-type(n + 5),
   .analysisLens::after { display: none; }
-  .marinePhysicalLayer { border-radius: 42%; filter: none; }
+  .marinePhysicalLayer { border-radius: 42%; filter: none; mask-image: radial-gradient(ellipse, #000 24%, rgba(0, 0, 0, 0.8) 54%, transparent 82%); }
 
   .decisionAtmosphere {
     background: radial-gradient(ellipse at 50% 67%, rgba(44, 176, 173, 0.15), transparent 44%);
@@ -981,7 +1079,7 @@
 
 @media (max-width: 390px) {
   .stage { min-height: 32rem; }
-  .signalNode { gap: 0.3rem; padding-inline: 0.48rem; }
+  .signalNode { gap: 0.28rem; max-width: 42vw; padding-inline: 0.44rem; font-size: 0.59rem; }
   .signalNode svg { width: 0.88rem; }
   .decisionPanel { border-radius: 0.9rem; }
   .decisionFact > svg { display: none; }
